@@ -69,3 +69,23 @@ intento de ingresar con una cuenta de ese rol, verificación que se realiza
 después de validar la contraseña para no exponer, a través del código de
 respuesta, si una cuenta con esas credenciales existe o qué rol tiene antes
 de que la autenticación sea exitosa.
+
+El registro de auditoría se revisó, a su vez, contra el mismo diagrama
+entidad-relación que había motivado la corrección del rol `SYSTEM`. Ese
+diagrama define, para la entidad de auditoría, un campo propio que la
+vincula directamente con la entidad turno, además de los campos genéricos
+de entidad y acción con los que se había implementado originalmente. Sin
+ese vínculo directo, reconstruir el historial de cambios sobre un turno
+puntual requería filtrar por el identificador genérico de entidad, en
+lugar de contar con una columna dedicada para esa consulta. Se incorporó
+entonces un campo opcional que referencia al turno afectado, sin agregarle
+todavía una relación formal de clave foránea a nivel de esquema: la
+entidad turno en sí pertenece a una fase posterior del desarrollo (el
+motor de turnos), de modo que el campo queda por ahora como una columna
+simple, a la espera de que esa fase incorpore la entidad y permita
+declarar la relación completa. Esta secuencia —introducir un campo que
+anticipa una relación futura sin bloquear el trabajo actual a que esa
+relación exista— se adoptó de forma análoga a como los puertos de
+integración se definieron antes de contar con los adaptadores reales:
+en ambos casos se prioriza dejar preparado el punto de extensión sin
+imponerle una dependencia dura a una pieza que todavía no se construyó.
