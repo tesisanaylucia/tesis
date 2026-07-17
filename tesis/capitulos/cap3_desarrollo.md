@@ -147,3 +147,73 @@ de sostener que el trabajo ya invertido en crearla. Si un módulo de
 diagnósticos resulta necesario más adelante, queda documentado que deberá
 diseñarse desde cero con su propio diagrama entidad-relación, en lugar de
 recuperar este modelo descartado.
+
+### 3.2.1 Profesionales
+
+El primer módulo de negocio construido sobre las fundaciones fue el de
+Profesionales, y su punto de partida fue el modelado de las entidades de
+dominio a partir del diagrama entidad-relación que actúa como fuente de
+verdad de la base de datos. Se incorporaron al esquema cinco entidades: el
+profesional, su especialidad, sus matrículas, sus horarios de atención y
+sus ausencias. Esta primera tarea se acotó deliberadamente al esquema y su
+migración, sin endpoints ni servicios, de modo que el modelo de datos
+quedara estabilizado y verificado antes de construir sobre él la lógica de
+gestión, la configuración de agenda y los filtros de asignación que
+abordan las tareas siguientes de la fase.
+
+El modelado reafirmó dos convenciones ya adoptadas en las fundaciones. La
+primera es que las entidades y sus columnas se nombran en inglés, pese a
+que el vocabulario de dominio del proyecto es el castellano de la clínica:
+la traza de esa decisión es la migración temprana que renombró al inglés
+los catálogos originalmente escritos en español, y las nuevas entidades se
+sumaron a esa convención (`Specialty`, `Professional`, `License`,
+`WorkingHour`, `Absence`). La segunda es el acotamiento por organización,
+que aquí se aplicó de forma matizada: cuatro de las cinco entidades
+declaran `organizationId` y quedan, por ese solo hecho, sujetas al
+acotamiento automático de la extensión de Prisma; la matrícula, en cambio,
+se dejó deliberadamente sin ese campo. La razón es que una matrícula nunca
+se consulta de manera independiente sino como colección de un profesional
+que ya está acotado por tenant, de modo que agregarle un `organizationId`
+propio sería redundante y podría incluso introducir la posibilidad de una
+inconsistencia entre el tenant de la matrícula y el de su profesional. El
+aislamiento de la matrícula queda así garantizado por la relación, no por
+un campo replicado.
+
+Varias reglas del dominio se ubicaron conscientemente fuera del esquema.
+El máximo de tres matrículas por profesional que fija el requisito se dejó
+como validación de la capa de servicio y no como restricción de base de
+datos, tanto porque el propio ticket lo sitúa allí como porque ese tope no
+se deriva naturalmente de la combinación de tipos de matrícula posibles y
+forzarlo en el esquema habría expresado la regla de forma artificiosa. Del
+mismo modo, los atributos que otras tareas de la fase configuran más
+adelante —la duración de la consulta y la franja horaria extra para
+pacientes nuevos— se declararon opcionales, para que el alta de un
+profesional no dependa de valores que todavía no se definen en esta etapa,
+mientras que los indicadores de comportamiento recibieron valores por
+defecto razonables. La baja de un profesional se modeló como lógica, a
+través de un indicador de actividad, nunca como borrado físico, en línea
+con el diagrama y con la necesidad de preservar la trazabilidad histórica.
+
+La especialidad se modeló como un catálogo acotado por tenant, con nombre
+de texto libre y unicidad por organización, replicando el patrón ya usado
+para el catálogo de obras sociales. Se descartó representarla como un
+enumerado cerrado —pese a que el diagrama menciona valores concretos—
+porque ello fijaría en el esquema la nomenclatura de una organización
+particular, en conflicto con el diseño para marca blanca que persigue el
+sistema. Los horarios de atención, por su parte, guardan las horas de
+inicio y fin como texto en formato de reloj de pared de veinticuatro
+horas, sin fecha ni huso asociados; se prefirió esta representación al tipo
+temporal nativo porque este último se expone como una fecha completa con un
+día artificial, semántica engañosa para un horario recurrente semanal que
+carece de fecha.
+
+La verificación se concentró en los criterios de aceptación del modelo: que
+la migración se aplicara sin dejar pendientes y que las relaciones fueran
+utilizables de extremo a extremo. Una prueba de integración inserta un
+profesional junto con su especialidad y sus matrículas y lo vuelve a leer,
+comprobando que la clave foránea a la especialidad resuelve, que la
+relación uno-a-muchos con las matrículas devuelve las filas esperadas y que
+los valores por defecto se aplican. Otras dos pruebas confirman que el
+acotamiento por tenant se extiende a las nuevas entidades: una consulta sin
+organización en contexto es rechazada, y una organización no accede a los
+profesionales de otra a través del cliente acotado.

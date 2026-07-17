@@ -13,3 +13,4 @@ epígrafe definitivos (ver `guia_estilo.md`).
 | 4 | Modelo de mensajería de WhatsApp Business Platform (ventana de servicio de 24 horas y disparo de plantillas fuera de ventana) | 2.3 WhatsApp Business Platform (Cloud API) | — |
 | 5 | Diagrama genérico de arquitectura hexagonal (puertos y adaptadores: dominio, aplicación, infraestructura) | 2.4 Arquitectura de software | — |
 | 6 | Diagrama conceptual de control de acceso IoT (cerradura BLE, gateway, plataforma cloud, sistema externo) | 2.6 IoT y control de acceso electrónico | — |
+| 7 | Diagrama entidad-relación del subdominio Profesionales (profesional, especialidad, matrícula, horario de atención, ausencia; cardinalidades y acotamiento por organización) | 3.2.1 Profesionales | backend |
