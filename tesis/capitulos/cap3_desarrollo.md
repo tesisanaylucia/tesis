@@ -89,3 +89,61 @@ relación exista— se adoptó de forma análoga a como los puertos de
 integración se definieron antes de contar con los adaptadores reales:
 en ambos casos se prioriza dejar preparado el punto de extensión sin
 imponerle una dependencia dura a una pieza que todavía no se construyó.
+
+Una revisión posterior del mismo registro de auditoría, contra el
+documento de requisitos y el diagrama entidad-relación en conjunto,
+identificó que la tabla combinaba, en la práctica, tres categorías de
+eventos de naturaleza distinta: acciones humanas sobre un turno (ya
+resueltas mediante el campo dedicado descripto en el párrafo anterior),
+acciones humanas sobre un paciente sin turno asociado —como la
+exportación o la supresión de sus datos, propias del módulo de
+cumplimiento normativo— y eventos operativos generados por el adaptador
+de la cerradura inteligente, que no son decisiones de una persona sino
+registros de una integración de hardware. Para la segunda categoría se
+incorporó un campo opcional que referencia al paciente afectado, siguiendo
+el mismo tratamiento que el campo de turno: sin relación de clave foránea
+todavía, a la espera de que la fase de pacientes incorpore esa entidad al
+esquema. Se aprovechó además la aparición de esta segunda categoría para
+corregir el campo de acción del registro de auditoría, que hasta entonces
+estaba restringido a un conjunto cerrado de tres valores (creación,
+modificación, eliminación): dado que las acciones de cumplimiento sobre
+pacientes no se conocen de antemano como un conjunto fijo, se convirtió
+ese campo a texto libre, evitando así tener que sostener dos columnas de
+acción distintas —una por conjunto cerrado y otra por texto libre— en el
+mismo registro.
+
+Para la tercera categoría, en cambio, se optó por una tabla y un servicio
+completamente separados del registro de auditoría, en lugar de distinguir
+el origen del evento dentro de la misma tabla mediante una columna
+adicional. Mezclar en una sola tabla la trazabilidad de decisiones humanas
+sobre datos de pacientes con el volumen operativo de una integración de
+hardware —reintentos, errores de comunicación, expiraciones de código—
+contaminaría una traza pensada para sustentar responsabilidad sobre datos
+sensibles con registros de diagnóstico técnico, de cardinalidad y
+propósito distintos. La tabla resultante replica, para el alcance
+multi-tenant, el mismo mecanismo de acotamiento automático por
+organización que ya usaban el registro de auditoría y la configuración por
+tenant, y se implementó como módulo independiente, sin que el módulo de
+auditoría dependa de él ni viceversa. Ni este servicio de eventos de
+cerradura ni el campo de paciente del registro de auditoría se conectaron
+todavía a ningún llamador real: el adaptador de la cerradura inteligente y
+los endpoints administrativos sobre pacientes pertenecen a fases
+posteriores del desarrollo que, al momento de esta corrección, no existían
+en el código.
+
+Una revisión posterior del esquema, esta vez centrada en los catálogos
+auxiliares incorporados junto con la configuración por tenant, encontró un
+modelo que no correspondía a ninguna fuente de verdad vigente del
+proyecto: un catálogo de diagnósticos con códigos CIE-10, agregado a
+partir de una mención aislada del documento de requisitos a "tablas
+auxiliares" pero ausente del diagrama entidad-relación de la base de
+datos. Ninguna entidad de dominio implementada o planificada declaraba una
+clave foránea hacia ese catálogo, y la capa conversacional excluye
+explícitamente los diagnósticos de su alcance. Se optó por eliminar el
+modelo por completo en lugar de conservarlo sin uso: una tabla en el
+esquema que no responde a ningún requisito ni relación real introduce una
+discrepancia entre el código y su especificación que resulta más costosa
+de sostener que el trabajo ya invertido en crearla. Si un módulo de
+diagnósticos resulta necesario más adelante, queda documentado que deberá
+diseñarse desde cero con su propio diagrama entidad-relación, en lugar de
+recuperar este modelo descartado.
