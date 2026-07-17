@@ -49,3 +49,23 @@ desarrollo del resto del sistema de forma independiente de esas
 integraciones, y deja como trabajo de una fase posterior únicamente la
 tarea de reemplazar cada adaptador *stub* por su contraparte real, sin
 tocar la lógica de negocio que los consume.
+
+La autorización por rol se revisó posteriormente contra el diagrama
+entidad-relación de la base de datos, que define tres valores posibles
+para el rol de un usuario —`profesional`, `admin` y `sistema`— mientras
+que la implementación inicial solo contemplaba los dos primeros. El tercer
+valor, incorporado al enum como `SYSTEM`, se reservó para procesos
+automatizados que necesitan actuar sobre la base de datos sin que exista
+un usuario humano en el contexto de la solicitud: los trabajos programados
+de recordatorio y expiración (confirmación a 24 horas, cancelación
+automática a 4 horas, vencimiento de códigos de acceso temporal) y, más
+adelante, el orquestador de la capa conversacional. Sin un rol dedicado
+para estos actores, cualquier acción automatizada sobre datos de pacientes
+—incluida su propia traza de auditoría— carecería de un identificador de
+usuario válido y consistente para atribuirla. Al mismo tiempo, se decidió
+excluir explícitamente a `SYSTEM` de la vía de autenticación manual: el
+endpoint de inicio de sesión rechaza con un código de prohibido cualquier
+intento de ingresar con una cuenta de ese rol, verificación que se realiza
+después de validar la contraseña para no exponer, a través del código de
+respuesta, si una cuenta con esas credenciales existe o qué rol tiene antes
+de que la autenticación sea exitosa.
