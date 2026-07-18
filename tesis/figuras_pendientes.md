@@ -14,3 +14,4 @@ epígrafe definitivos (ver `guia_estilo.md`).
 | 5 | Diagrama genérico de arquitectura hexagonal (puertos y adaptadores: dominio, aplicación, infraestructura) | 2.4 Arquitectura de software | — |
 | 6 | Diagrama conceptual de control de acceso IoT (cerradura BLE, gateway, plataforma cloud, sistema externo) | 2.6 IoT y control de acceso electrónico | — |
 | 7 | Diagrama entidad-relación del subdominio Profesionales (profesional, especialidad, matrícula, horario de atención, ausencia; cardinalidades y acotamiento por organización) | 3.2.1 Profesionales | backend |
+| 8 | Flujo de autorización del ABM de Profesionales (autenticación JWT → guard de rol → guard de propiedad "administrador o dueño") | 3.2.1 Profesionales | backend |

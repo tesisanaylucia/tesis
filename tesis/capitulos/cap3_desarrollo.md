@@ -217,3 +217,63 @@ los valores por defecto se aplican. Otras dos pruebas confirman que el
 acotamiento por tenant se extiende a las nuevas entidades: una consulta sin
 organización en contexto es rechazada, y una organización no accede a los
 profesionales de otra a través del cliente acotado.
+
+Estabilizado el modelo de datos, se construyó sobre él la capa de negocio
+del módulo: los servicios y los endpoints REST para el alta, la consulta, la
+modificación y la baja lógica de profesionales, junto con la gestión de sus
+matrículas. El módulo no reintroduce infraestructura propia sino que se
+apoya en las fundaciones ya descritas: el cliente de datos acotado por
+tenant, el registro de auditoría, los guards de autenticación y rol, y el
+interceptor que propaga la organización del request. Cada mutación —alta,
+edición, baja, y las operaciones sobre matrículas— deja su rastro en la
+traza de auditoría, reutilizando el servicio existente sin acoplarse a su
+implementación.
+
+La decisión de diseño más relevante de esta etapa fue cómo expresar los tres
+niveles de acceso que exige el módulo. Algunas operaciones son exclusivas
+del rol administrativo (crear un profesional, darlo de baja); otras puede
+ejercerlas también el propio profesional sobre su registro (editar sus
+datos y sus matrículas); y las consultas quedan disponibles para cualquier
+usuario autenticado del tenant, dado que el listado alimenta al chatbot. Los
+dos primeros niveles se resolvieron de forma declarativa y complementaria:
+el decorador de rol ya existente para las rutas exclusivas del administrador,
+y un guard de propiedad nuevo para las rutas de tipo "administrador o
+dueño", que compara el profesional asociado al usuario autenticado con el
+profesional referido en la ruta y admite incondicionalmente al
+administrador. Se prefirió un guard reutilizable antes que incrustar la
+comprobación en cada método de servicio, porque la propiedad es una
+preocupación de autorización transversal a varias rutas; centralizarla evita
+repetir la lógica, la mantiene junto a la ruta que protege y la deja
+verificable de forma aislada. Para que un mismo guard sirviera a la edición
+del profesional y a las tres operaciones de matrículas, estas últimas se
+modelaron como sub-recurso anidado bajo el profesional, exponiendo su
+identificador con el mismo nombre de parámetro.
+
+El tratamiento de las matrículas heredó la consecuencia de haberlas dejado,
+en P1.1, sin identificador de organización propio: al no estar sujetas al
+acotamiento automático, el servicio nunca las resuelve de forma aislada por
+su identificador, sino que primero verifica —a través del servicio de
+profesionales— que el profesional padre pertenece al tenant del request, y
+solo entonces opera sobre la matrícula filtrando además por ese profesional.
+El aislamiento se deriva así del profesional ya acotado, en coherencia con
+el modelo. El tope de tres matrículas por profesional se validó en dos
+planos que comparten una única constante: el DTO de alta, para las cargadas
+en línea junto con el profesional, y el servicio, para el alta incremental,
+que cuenta las existentes antes de insertar; superar el límite produce un
+error de validación. Finalmente, las respuestas no devuelven la entidad de
+persistencia en crudo sino que pasan por una función de presentación que
+fija su forma y omite el identificador de organización, para que ese dato
+interno no cruce la frontera de la interfaz; la definición de qué relaciones
+se cargan se comparte entre las consultas y el tipo de la respuesta, de modo
+que ambas no puedan divergir.
+
+La verificación de esta capa se realizó atravesando la interfaz HTTP con
+credenciales reales. Las pruebas end-to-end ejercitan el alta por el
+administrador con matrículas en línea y su registro de auditoría, el rechazo
+del alta a un rol no administrativo, el listado con nombre y matrículas, el
+aislamiento por tenant —una organización recibe una respuesta de no
+encontrado ante un profesional de otra—, la edición del propio registro por
+su dueño y el rechazo al editar el de un tercero, el tope de matrículas y la
+baja lógica exclusiva del administrador, que retira al profesional del
+listado activo pero lo conserva en la base con su indicador de actividad en
+falso. Una prueba unitaria adicional aísla la lógica del guard de propiedad.
