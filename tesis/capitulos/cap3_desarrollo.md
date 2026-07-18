@@ -277,3 +277,71 @@ su dueño y el rechazo al editar el de un tercero, el tope de matrículas y la
 baja lógica exclusiva del administrador, que retira al profesional del
 listado activo pero lo conserva en la base con su indicador de actividad en
 falso. Una prueba unitaria adicional aísla la lógica del guard de propiedad.
+
+Estabilizado el módulo de profesionales, se lo completó con dos capacidades
+de su agenda: la grilla semanal de horarios de atención y la gestión de
+ausencias. Ambas se modelaron como sub-recursos anidados bajo el profesional,
+en coherencia con las matrículas, y reutilizan sin cambios el guard de
+propiedad, el registro de auditoría y el anclaje en el profesional padre ya
+descritos. Como las tablas de horario y ausencia se habían creado en el
+modelado inicial, esta etapa aportó únicamente la capa de negocio sobre
+ellas.
+
+La grilla de horarios se gestiona mediante un reemplazo total e idempotente:
+un único endpoint recibe el conjunto completo de bloques y sustituye con él
+toda la grilla del profesional, borrando los bloques previos e insertando los
+nuevos dentro de una misma transacción, de modo que un fallo no deje un
+estado parcial y que reenviar el mismo contenido produzca siempre el mismo
+resultado. Se prefirió este esquema de reemplazo frente a un alta y baja
+individual de bloques porque coincide con la forma en que una interfaz de
+agenda edita una grilla semanal y porque simplifica la validación de
+solapamientos, que puede realizarse sobre el conjunto entrante completo sin
+contrastarlo contra el estado ya persistido. Esa validación es una regla de
+negocio y se ubicó en el servicio, no en el DTO: aprovechando que las horas
+se guardan como texto de reloj de pared con cero a la izquierda —decisión
+tomada en el modelado—, los bloques se comparan por orden de cadena sin
+necesidad de convertirlos a un tipo temporal; se verifica que en cada bloque
+el inicio preceda al fin y que, agrupados por día y ordenados por hora, dos
+bloques del mismo día no se superpongan, admitiéndose como válidos los que
+apenas se tocan para permitir modelar mañana y tarde contiguas. El DTO, por
+su parte, solo valida el formato de cada hora. Una violación de cualquiera de
+estas reglas produce un error de validación.
+
+La gestión de ausencias —registro, consulta y cancelación— introdujo el
+requisito de dejar preparado un punto de extensión: al registrarse una
+ausencia debe emitirse un evento para que un módulo posterior dispare la
+reasignación de los turnos afectados, sin que esa lógica de reasignación se
+implemente todavía aquí. Para no acoplar el dominio de profesionales a ese
+futuro consumidor, el evento se publica a través de un puerto de dominio
+propio, análogo a los puertos de integración externa ya presentes: el
+servicio de ausencias depende de una abstracción de publicación por
+inyección y, tras persistir y auditar la ausencia, emite el evento con los
+identificadores del profesional, del tenant y de la ausencia, y el rango de
+fechas. El adaptador por defecto se limita a registrar la emisión, sin
+exponer datos sensibles, y será sustituido más adelante por un suscriptor
+real sin tocar este módulo. Se prefirió este puerto enfocado a incorporar un
+bus de eventos genérico, porque el único evento que la fase necesita es el de
+ausencia registrada y un contrato explícito y tipado resulta más claro, evita
+sumar una dependencia y es coherente con el mecanismo de extensión que el
+resto del sistema ya emplea. En línea con el requisito, registrar una
+ausencia bloquea el período pero no altera la grilla de horarios habituales:
+el servicio de ausencias nunca toca los horarios. La emisión del evento
+representa el punto de extensión hacia la reasignación de turnos que
+abordará un módulo posterior, y se dejó registrada como figura pendiente.
+
+La autorización de estas dos capacidades reprodujo el criterio del ABM: la
+consulta de la grilla y de las ausencias queda abierta a cualquier usuario
+autenticado del tenant, porque alimentará a las capas de agenda y de chatbot,
+mientras que el reemplazo de la grilla y el alta y la cancelación de
+ausencias se restringen, con el mismo guard de propiedad reutilizado, al
+propio profesional o al administrador. La verificación volvió a realizarse de
+extremo a extremo sobre la interfaz HTTP, sustituyendo el puerto de eventos
+por un doble que captura las publicaciones para comprobar su contenido. Las
+pruebas ejercitan el reemplazo idempotente de la grilla, el rechazo de
+bloques solapados, de un bloque con inicio no anterior al fin y de una hora
+mal formada, la aceptación de bloques contiguos, el aislamiento por tenant y
+el rechazo al modificar la grilla ajena; y, para las ausencias, el registro
+con emisión y auditoría del evento, el rechazo de un rango de fechas
+invertido sin emitir evento, la conservación de la grilla al registrar una
+ausencia, el listado y la cancelación, y el rechazo al operar sobre otro
+profesional.

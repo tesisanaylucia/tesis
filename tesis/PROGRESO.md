@@ -36,7 +36,7 @@ citas y datos volátiles pendientes de verificación), `en progreso`,
 |---|---|---|---|
 | 3.1 Arquitectura general | sin iniciar | — | — |
 | 3.2.0 Fundaciones | en progreso | FASE-0_PROMPT-5 (TASK-74, eliminación del catálogo de diagnósticos) | backend |
-| 3.2.1 Profesionales | en progreso | FASE-1_PROMPT-2 (TASK-22, ABM de profesionales y matrículas) | backend |
+| 3.2.1 Profesionales | en progreso | FASE-1_PROMPT-3 (TASK-23, horarios de atención y ausencias) | backend |
 | 3.2.2 Pacientes | sin iniciar | — | backend |
 | 3.2.3 Motor de Turnos | sin iniciar | — | backend |
 | 3.2.4 Notificaciones y Scheduler | sin iniciar | — | backend |
