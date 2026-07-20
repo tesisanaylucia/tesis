@@ -451,3 +451,52 @@ modifica el indicador y verifica que la lectura siguiente del listado ya lo
 refleja, comprobando lo propio al reabrir la admisión; se traduce así un
 requisito enunciado sobre el comportamiento de un módulo futuro en una garantía
 verificable sobre la interfaz que ese módulo consumirá.
+
+El módulo se cerró con dos tareas de consolidación: la carga de datos de
+desarrollo que reproduce el plantel del piloto y el completamiento de la
+cobertura de pruebas. La fuente de requisitos indica que la clínica cuenta
+actualmente con cuatro psiquiatras y una psicóloga, y que no incorpora nuevos
+profesionales con frecuencia; ese plantel es el que reproduce el sembrado de
+datos, con cada profesional acompañado de su especialidad, sus dos matrículas
+—provincial y profesional, tal como el chatbot las exhibe—, una grilla semanal
+de horarios de atención y la configuración base completa de las dos etapas
+anteriores. Todos los datos son ficticios y deliberadamente reconocibles como
+tales, a la espera de que el cliente provea los reales. La configuración se
+distribuyó de forma heterogénea a lo largo del plantel —duraciones de consulta
+que reproducen los dos ejemplos de la fuente de requisitos, franjas extra de una
+y dos horas, las tres modalidades de ubicación de esa franja, las dos
+modalidades de reasignación, y profesionales con la admisión cerrada y con el
+filtro de edad activo—, de modo que una base recién sembrada ejercite todas las
+ramas que los módulos de agenda y de conversación deberán manejar, en lugar de
+un único caso homogéneo que ocultaría errores en las ramas no representadas.
+
+El requisito de idempotencia del sembrado se satisfizo con una garantía más
+fuerte que la enunciada. No basta con que una segunda ejecución no duplique
+filas: como ninguna de las entidades involucradas posee una clave de negocio
+natural sobre la que insertar o actualizar, los identificadores deben fijarse
+explícitamente, y al cambiar ese esquema de identificadores —situación que se
+produjo en esta misma tarea— las filas de la versión anterior sobrevivirían
+junto a las nuevas, duplicando la colección de cada profesional. Se optó por un
+sembrado convergente: además de insertar o actualizar cada fila sobre un
+identificador estable, las colecciones hijas de cada profesional se reconcilian,
+eliminando toda fila que ya no figure en la declaración. El sembrado converge
+así siempre al mismo estado, incluso después de que sus propios datos cambien.
+Los identificadores, por su parte, se derivan de un espacio de nombres por
+entidad y un número de secuencia en lugar de enumerarse literalmente, decisión
+que resultó necesaria al incorporar una grilla semanal de horarios por
+profesional, cuyo volumen vuelve impracticable la enumeración explícita.
+
+El completamiento de la cobertura se abordó relevando primero lo ya verificado.
+Ese relevamiento mostró que la mayor parte de los casos enunciados —alta,
+consulta, edición y baja lógica de profesionales, tope de matrículas,
+aislamiento por tenant en la consulta individual y reglas de rol y propiedad— ya
+estaba ejercitada desde la construcción de la capa de negocio del módulo, de
+modo que se prefirió no duplicar pruebas equivalentes y concentrar el esfuerzo
+en los huecos reales. Estos resultaron ser la edición y la eliminación de una
+matrícula, el rechazo por falta de propiedad sobre las tres rutas de matrículas,
+y el aislamiento por tenant del listado, complemento de la garantía ya
+verificada sobre la consulta individual. La idempotencia del sembrado, en
+cambio, se verificó manualmente y no mediante una prueba automatizada, dado que
+ejecutarlo desde el conjunto de pruebas introduciría un efecto colateral sobre
+la base de datos compartida que las demás pruebas —que crean sus propias
+organizaciones aisladas— no controlan.
