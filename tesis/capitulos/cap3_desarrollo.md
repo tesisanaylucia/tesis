@@ -346,10 +346,11 @@ invertido sin emitir evento, la conservación de la grilla al registrar una
 ausencia, el listado y la cancelación, y el rechazo al operar sobre otro
 profesional.
 
-El módulo se cerró con la configuración de agenda que cada profesional define
-para sí mismo: la duración de sus turnos y la franja horaria extra destinada a
-la primera sesión de un paciente nuevo, que por ser más larga ocupa dos turnos
-consecutivos. Dos de los campos involucrados —la duración de la consulta, en
+El módulo se completó, por último, con la configuración que cada profesional
+define para sí mismo, abordada en dos etapas sucesivas. La primera de ellas
+introdujo la configuración de agenda: la duración de sus turnos y la franja
+horaria extra destinada a la primera sesión de un paciente nuevo, que por ser
+más larga ocupa dos turnos consecutivos. Dos de los campos involucrados —la duración de la consulta, en
 minutos, y la franja extra, en horas— ya se habían declarado opcionales en el
 modelado inicial, difiriendo su configuración a esta etapa; a ellos se sumó un
 tercer atributo, ausente del diagrama entidad-relación original, que registra
@@ -390,3 +391,63 @@ configuración y persistencia de las tres modalidades, el rechazo de una
 duración no positiva, de una franja negativa, de una duración no entera y de una
 modalidad desconocida, y las reglas de autorización y aislamiento por tenant ya
 habituales en el módulo.
+
+La segunda etapa incorporó los tres atributos de política que gobiernan a qué
+pacientes atiende cada profesional y qué ocurre con sus turnos liberados: el
+filtro de edad, que restringe la atención a personas adultas; el indicador de
+apertura o cierre de la admisión de pacientes nuevos; y la modalidad de
+reasignación de un turno cancelado, que puede ser automática —el sistema ofrece
+la franja liberada a los pacientes en lista de espera según un orden de
+prioridad— o manual —la franja queda reservada para que el profesional la
+asigne—. A diferencia de la etapa anterior, esta no requirió modificar el
+esquema de datos: los tres campos, junto con el enumerado de modalidad de
+reasignación, se habían incorporado ya en el modelado inicial del módulo con sus
+valores por defecto —sin filtro de edad, admisión abierta y reasignación
+automática—, de modo que el modelo de persistencia ya reflejaba la fuente de
+verdad y lo que restaba era habilitar su edición. El trabajo se concentró, por
+tanto, íntegramente en la capa de entrada.
+
+La decisión de diseño de esta etapa fue consolidar esos atributos en el endpoint
+de configuración ya existente en lugar de exponer uno nuevo para la política de
+admisión. Se prefirió la consolidación porque los tres campos son, igual que los
+de agenda, atributos de la propia entidad profesional que su titular ajusta
+desde la aplicación y que se rigen por el mismo criterio de acceso; abrir una
+ruta por subconjunto temático de campos habría fragmentado una operación única
+—el profesional ajusta su configuración— y obligado a duplicar el guard de
+propiedad, el acotamiento por tenant y el registro de auditoría sin ganancia de
+cohesión. Se mantuvo, en cambio, la separación ya establecida entre los datos
+identitarios del profesional y su configuración, que continúan en endpoints
+distintos. Las validaciones siguieron el criterio del módulo: los dos
+indicadores se validan como booleanos y la modalidad como uno de los dos valores
+de su enumerado, todo en el DTO por tratarse de restricciones de forma sobre
+campos aislados.
+
+La semántica de modificación parcial, ya adoptada en la etapa anterior, adquirió
+aquí una relevancia adicional. Como el indicador de admisión de pacientes nuevos
+tiene por defecto el valor verdadero, resulta imprescindible que un valor falso
+explícito se distinga de la ausencia del campo en la petición: los campos no
+enviados se propagan a la capa de persistencia como indefinidos, interpretados
+como ausencia de cambio, mientras que los presentes se escriben con su valor. De
+ese modo, cerrar la admisión de pacientes nuevos no obliga a reenviar la
+duración de la consulta ni la franja extra, y no puede confundirse con no haber
+enviado nada.
+
+Cabe subrayar, como en la etapa precedente, el límite del alcance: esta etapa
+únicamente persiste y expone la configuración. La validación de la edad del
+paciente durante la conversación —que solicita documento y fecha de nacimiento
+solo a quienes no están registrados y reutiliza la fecha ya almacenada para los
+demás— y la lógica de reasignación que da sentido a cada modalidad, con las
+ventanas de espera que cada una implica, corresponden a módulos posteriores.
+
+La verificación incorporó, junto a las pruebas unitarias de persistencia de cada
+modalidad y de los dos indicadores, y a las pruebas end-to-end de los criterios
+de aceptación —modificación con filtro de edad activo, admisión cerrada y cada
+modalidad de reasignación, rechazo de una modalidad desconocida y de valores no
+booleanos, y las reglas de autorización y aislamiento ya habituales—, una prueba
+específica para el requisito de que el cierre de la admisión surta efecto de
+forma inmediata. Dado que la capa conversacional obtiene los profesionales
+disponibles a través del listado del módulo antes de ofrecer turnos, la prueba
+modifica el indicador y verifica que la lectura siguiente del listado ya lo
+refleja, comprobando lo propio al reabrir la admisión; se traduce así un
+requisito enunciado sobre el comportamiento de un módulo futuro en una garantía
+verificable sobre la interfaz que ese módulo consumirá.
