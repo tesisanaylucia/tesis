@@ -31,14 +31,27 @@ de la garantía ya verificada sobre la consulta individual—.
 **El seed se diseñó convergente, no meramente no duplicante.** El requisito
 pedía idempotencia, entendida como que una segunda ejecución no duplique
 registros. Se adoptó una garantía más fuerte: además de insertar o actualizar
-cada fila sobre un identificador fijo, las colecciones hijas de cada profesional
-—matrículas y horarios— se reconcilian, eliminando toda fila que ya no figure en
-la declaración del seed. La razón es concreta y surgió al implementar la tarea:
-al cambiar el esquema de identificadores de las matrículas respecto del seed
-anterior, una idempotencia basada solo en insertar o actualizar habría dejado
-las matrículas viejas conviviendo con las nuevas, duplicando la colección de
-cada profesional. Con la reconciliación, el seed converge siempre al estado
-declarado, incluso después de que los propios datos del seed cambien.
+cada fila sobre un identificador fijo, se reconcilia todo lo que el seed creó en
+una ejecución anterior y ya no declara, eliminándolo. La razón es concreta y
+surgió al implementar la tarea: al cambiar el esquema de identificadores de las
+matrículas respecto del seed anterior, una idempotencia basada solo en insertar
+o actualizar habría dejado las matrículas viejas conviviendo con las nuevas,
+duplicando la colección de cada profesional.
+
+Cabe consignar que la primera versión de esta tarea aplicó la reconciliación
+únicamente a las colecciones hijas —matrículas y horarios— y no a los
+profesionales mismos, pese a que su documentación afirmaba una convergencia
+general. La revisión posterior del módulo detectó el error: al retirar a un
+profesional del plantel declarado, su registro permanecía en la base con el
+indicador de actividad en verdadero mientras sus matrículas y horarios sí se
+eliminaban, produciendo un profesional que el chatbot ofrecería sin
+disponibilidad alguna —un estado peor que no haber reconciliado nada—. La
+corrección incorporó la reconciliación de profesionales, deliberadamente
+acotada al espacio de identificadores y al rango de secuencia propios del seed,
+de modo que un profesional creado a través de la API durante el desarrollo nunca
+resulte eliminado. La verificación se realizó plantando dos registros —uno
+dentro del espacio de identificadores del seed y otro fuera— y comprobando que
+la ejecución elimina el primero y preserva el segundo.
 
 **Los identificadores fijos se derivan en lugar de escribirse literalmente.**
 El seed anterior enumeraba identificadores completos uno por uno, lo que resulta
@@ -166,6 +179,82 @@ mano (descripciones, cuerpos de ejemplo y scripts de prueba) se siguen
 preservando. Por último, se agregó al generador una verificación que aborta si
 alguna carpeta queda con nombres repetidos, para que esta clase de defecto no
 vuelva a pasar inadvertida.
+
+## Segunda revisión: defectos y riesgos de concurrencia
+
+Una revisión posterior más exhaustiva, conducida por varios revisores
+independientes con enfoques distintos —aislamiento multiusuario y autorización,
+conformidad arquitectónica, correctitud funcional y calidad de las pruebas—
+detectó defectos que las pruebas existentes no cubrían. Se documentan aquí por
+pertenecer al mismo módulo y haberse corregido en el mismo branch.
+
+**Un valor nulo explícito en cualquier modificación parcial producía un error de
+servidor.** La biblioteca de validación empleada omite todas las restantes
+validaciones de un campo cuando su valor es nulo, no solo cuando está ausente, y
+la configuración de la tubería de validación descarta únicamente las propiedades
+sin decorar. En consecuencia, un campo declarado opcional y enviado explícitamente
+en nulo atravesaba la validación intacto y alcanzaba la capa de persistencia, que
+lo rechazaba contra una columna no nulable con un error no controlado. El defecto
+se reprodujo empíricamente sobre el servidor en ejecución antes de corregirlo.
+
+La corrección no podía ser global: ese mismo comportamiento era, de hecho, la
+única vía por la que podía restablecerse a nulo un parámetro de agenda ya
+configurado —una capacidad que funcionaba por accidente, sin estar declarada en
+los tipos ni cubierta por pruebas—. Suprimir el nulo indiscriminadamente la
+habría eliminado en silencio. Se introdujeron por ello dos decoradores que
+obligan a cada campo opcional a declarar cuál de los dos casos es: uno rechaza el
+nulo, para las columnas no nulables, y otro lo admite con el significado
+explícito de "restablecer el valor", para las nulables.
+
+**Dos invariantes que abarcan una lectura y una escritura no estaban protegidos
+frente a la concurrencia.** El nivel de aislamiento por omisión de la base de
+datos permite que dos peticiones simultáneas lean un estado que autoriza la
+escritura y ambas escriban, produciendo un estado que ninguna de las dos habría
+admitido. En el reemplazo de la grilla de horarios, la segunda transacción
+eliminaba filas que la primera ya había borrado y luego insertaba las suyas, con
+lo que persistía la unión de ambas grillas —solapada, es decir, exactamente el
+invariante que la validación de solapamientos existe para impedir, y sin ninguna
+restricción de base de datos que lo detectara después—. En el tope de tres
+matrículas, dos altas simultáneas leían el mismo recuento y ambas insertaban.
+Ambos casos se resolvieron ejecutando la operación completa bajo aislamiento
+serializable, de modo que la transacción perdedora aborta y el conflicto se
+informa como tal en lugar de corromper los datos en silencio.
+
+**Las entradas de auditoría se escribían fuera de la transacción de la mutación
+que describen.** Una mutación que se confirmaba y una auditoría que fallaba a
+continuación dejaban un cambio sin registrar, y en el caso de las eliminaciones,
+sin posibilidad de reconstruir quién lo efectuó. Dado que la traza de auditoría
+responde a una obligación legal (Ley 25.326), el servicio de auditoría pasó a
+admitir el identificador de una transacción en curso, y todas las mutaciones del
+módulo lo transmiten, de forma que el registro se confirma o se revierte junto
+con el cambio.
+
+**La baja lógica de un profesional no revocaba su acceso.** La baja conserva el
+registro con su indicador de actividad en falso, pero la cuenta de usuario
+vinculada permanecía intacta, la autenticación no verificaba el estado del
+profesional y la validación del token no consulta la base de datos. Un
+profesional desvinculado podía por tanto seguir autenticándose y editando su
+propia grilla de horarios, que es la que el motor de turnos consulta. Se
+incorporó la verificación en el inicio de sesión; los tokens ya emitidos siguen
+siendo válidos hasta su expiración, limitación que se deja consignada.
+
+**Incoherencia en el contrato de la interfaz.** El alta de un profesional
+aceptaba sus matrículas bajo una clave en castellano mientras todas las
+respuestas las devolvían bajo una clave en inglés. Se unificó en inglés, por ser
+la convención efectivamente vigente: el cuerpo JSON está íntegramente en inglés
+y solo las rutas están en castellano.
+
+**Documentación de arquitectura divergente del código.** La revisión constató que
+la separación en capas de dominio, aplicación e infraestructura que declaraba el
+documento de convenciones del repositorio no la implementa ningún módulo: el
+directorio de dominio contiene únicamente puertos y el de infraestructura
+únicamente adaptadores. La mitad del patrón que sí se aplica de forma consistente
+es la de puertos y adaptadores en los límites de integración externa. Se optó por
+corregir el documento en lugar de reestructurar el código, por dos razones: con
+una única tecnología de persistencia y sin previsión de sustituirla, introducir
+entidades de dominio y sus conversores sería costo sin beneficio; y un documento
+que describe una realidad inexistente induce a ignorarlo por completo, incluidas
+las prescripciones que sí importan, como el acotamiento por organización.
 
 ## Verificación adicional
 

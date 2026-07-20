@@ -478,9 +478,24 @@ explícitamente, y al cambiar ese esquema de identificadores —situación que s
 produjo en esta misma tarea— las filas de la versión anterior sobrevivirían
 junto a las nuevas, duplicando la colección de cada profesional. Se optó por un
 sembrado convergente: además de insertar o actualizar cada fila sobre un
-identificador estable, las colecciones hijas de cada profesional se reconcilian,
-eliminando toda fila que ya no figure en la declaración. El sembrado converge
-así siempre al mismo estado, incluso después de que sus propios datos cambien.
+identificador estable, se elimina todo lo que el sembrado creó antes y ya no
+declara. El sembrado converge así siempre al mismo estado, incluso después de
+que sus propios datos cambien.
+
+Conviene dejar constancia de que esa convergencia se alcanzó en dos pasos, y que
+el primero fue incompleto. La reconciliación se aplicó inicialmente solo a las
+colecciones hijas de cada profesional, de modo que retirar a un profesional del
+plantel declarado dejaba su registro activo en la base mientras sus matrículas y
+horarios sí desaparecían: un profesional que la capa conversacional ofrecería
+sin disponibilidad, resultado peor que el de no reconciliar nada. La revisión
+posterior del módulo lo detectó y la corrección extendió la reconciliación a los
+profesionales, acotándola al espacio de identificadores y al rango de secuencia
+que el propio sembrado utiliza, para que un profesional creado a través de la
+interfaz durante el desarrollo no resulte nunca eliminado. El episodio ilustra
+un riesgo específico de la documentación técnica escrita junto con el código: la
+afirmación de convergencia se redactó a partir de la intención del diseño y no
+de su alcance efectivo, y sobrevivió sin ser cuestionada hasta que una revisión
+independiente contrastó el texto con la implementación.
 Los identificadores, por su parte, se derivan de un espacio de nombres por
 entidad y un número de secuencia en lugar de enumerarse literalmente, decisión
 que resultó necesaria al incorporar una grilla semanal de horarios por
@@ -529,3 +544,57 @@ relación alguna, y se la adoptó en los puntos donde la entidad completa no se
 utilizaba. El episodio ilustra un riesgo propio del trabajo incremental: una
 mejora local puede convertir una ineficiencia latente en un problema efectivo si
 no se revisa el efecto conjunto sobre el resto del módulo.
+
+Cerrado el módulo, se lo sometió a una revisión más exhaustiva, conducida por
+varios revisores independientes con enfoques deliberadamente distintos: el
+aislamiento entre organizaciones y la autorización, la conformidad con las
+convenciones arquitectónicas declaradas, la correctitud funcional y la calidad de
+las pruebas. El procedimiento resultó productivo precisamente por la diversidad
+de enfoques: los defectos hallados no se solapan entre sí, y ninguno de ellos era
+detectable desde la perspectiva de los demás.
+
+El más grave era de validación de entrada. La biblioteca empleada para validar
+los datos recibidos omite todas las restricciones de un campo cuando su valor es
+nulo, y no únicamente cuando el campo está ausente; combinado con una tubería de
+validación que descarta solo las propiedades no declaradas, ello permitía que un
+campo enviado explícitamente en nulo atravesara la validación intacto y alcanzara
+la capa de persistencia, que lo rechazaba contra una columna no nulable con un
+error no controlado. Lo notable del caso es que la corrección no podía ser
+uniforme: ese mismo comportamiento constituía la única vía por la que podía
+restablecerse a nulo un parámetro de agenda ya configurado, capacidad que
+funcionaba de manera accidental y no declarada. Suprimir el nulo de forma global
+la habría eliminado sin que nada lo advirtiera. Se optó por obligar a cada campo
+opcional a declarar explícitamente cuál de los dos casos representa —si admite el
+nulo como instrucción de borrado o si debe rechazarlo—, con lo que una ambigüedad
+del comportamiento por defecto se convirtió en una decisión visible en el código.
+
+Dos invariantes que abarcan una lectura seguida de una escritura resultaron
+además desprotegidos frente al acceso concurrente. El nivel de aislamiento
+transaccional por omisión admite que dos peticiones simultáneas lean un estado
+que autoriza la escritura y ambas escriban, produciendo un estado que ninguna de
+las dos habría permitido individualmente. En el reemplazo de la grilla semanal
+ello persistía la unión de dos grillas, solapada, que es justamente lo que la
+validación de solapamientos existe para impedir; en el tope de matrículas,
+permitía superar el máximo. Ambos se resolvieron elevando el aislamiento de la
+transacción a serializable, de modo que la operación perdedora se aborta y el
+conflicto se informa explícitamente en lugar de corromper los datos en silencio.
+En la misma línea, las entradas de la traza de auditoría se escribían fuera de la
+transacción de la mutación que documentan, de manera que un fallo posterior a la
+confirmación del cambio dejaba ese cambio sin registrar —y, tratándose de
+eliminaciones, sin posibilidad de reconstruir su autoría—. Dado que la traza
+responde a una obligación legal, se incorporó el registro a la misma transacción
+que la mutación.
+
+La revisión alcanzó también a la documentación. Se constató que la separación en
+capas de dominio, aplicación e infraestructura que declaraban las convenciones
+del repositorio no la implementa ningún módulo del sistema: el directorio
+destinado al dominio contiene únicamente puertos de integración y el de
+infraestructura únicamente sus adaptadores. La porción del patrón que sí se
+aplica de manera consistente es la de puertos y adaptadores en los límites de
+integración externa, que es donde aporta valor efectivo. Se resolvió corregir el
+documento antes que reestructurar el código: con una única tecnología de
+persistencia y sin previsión de sustituirla, introducir entidades de dominio y
+sus conversores constituiría costo sin beneficio, mientras que un documento de
+convenciones que describe una realidad inexistente induce a desatenderlo por
+completo, incluidas las prescripciones que sí resultan críticas, como el
+acotamiento por organización de toda consulta.
