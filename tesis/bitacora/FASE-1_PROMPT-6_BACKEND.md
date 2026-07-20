@@ -256,6 +256,85 @@ entidades de dominio y sus conversores sería costo sin beneficio; y un document
 que describe una realidad inexistente induce a ignorarlo por completo, incluidas
 las prescripciones que sí importan, como el acotamiento por organización.
 
+## Tercera etapa: cierre de los hallazgos restantes
+
+Los hallazgos de la revisión que no se habían corregido en la etapa anterior se
+abordaron a continuación.
+
+**Las ausencias estaban modeladas como instantes, lo que anulaba la finalidad de
+la funcionalidad.** Una ausencia de un solo día se almacenaba como un intervalo
+de longitud nula —el mismo instante como inicio y como fin—, de modo que un
+consumidor que preguntara si un turno cae dentro de la ausencia no bloqueaba
+nada: el profesional declaraba un día libre y todos sus turnos permanecían
+asignados. Además, al ser la clínica de zona horaria UTC-3, toda fecha se
+representaba un día antes de la declarada.
+
+La corrección adoptó el mismo criterio que el proyecto ya había aplicado a los
+horarios de atención, y por la misma razón: una ausencia es un hecho de
+calendario, no un instante. Las fechas pasaron a expresarse como días de
+calendario inclusivos en formato de año, mes y día, almacenados en columnas de
+tipo fecha —sin hora ni zona—, con ambos extremos incluidos, de modo que una
+ausencia de un día bloquea efectivamente ese día. Se descartó la alternativa de
+normalizar las marcas temporales al comienzo y al fin del día en la zona horaria
+de la clínica, porque exigiría aritmética de husos horarios sin biblioteca
+específica y dejaría el valor expuesto a la misma clase de error.
+
+Al escribir las pruebas de esta corrección se detectó un defecto adicional: la
+validación del formato comprobaba la forma de la cadena pero no la existencia
+del día, de modo que una fecha imposible como el 31 de febrero la atravesaba y
+la conversión posterior la desplazaba silenciosamente al 3 de marzo, guardando
+un día que el solicitante nunca pidió. Se incorporó una validación que verifica
+la identidad de ida y vuelta de la conversión, lo que rechaza exactamente los
+días inexistentes, años bisiestos incluidos.
+
+Se agregaron asimismo la validación de solapamiento entre ausencias —dos
+ausencias superpuestas bloquearían dos veces el mismo día y emitirían dos
+eventos de reasignación para un único período— y el evento de cancelación, que
+faltaba: sin él, un consumidor que hubiera reasignado turnos al registrarse la
+ausencia no tendría forma de enterarse de que fue dada de baja.
+
+**Se eliminaron las conversiones de tipo no verificadas.** Seis puntos del
+código forzaban la conversión del objeto de datos para satisfacer el
+identificador de organización que la extensión de acotamiento agrega en tiempo
+de ejecución. El problema no era la conversión en sí sino su alcance: desactiva
+la verificación de tipos sobre el objeto completo y no solo sobre el campo
+faltante, con lo que una columna mal escrita compilaba sin error y fallaba
+recién en ejecución. Se introdujeron funciones auxiliares que verifican el
+argumento campo por campo contra el tipo real menos ese identificador, con lo
+que la única conversión inevitable queda en un solo lugar documentado.
+
+**Se corrigió una condición de autorización que fallaba en sentido permisivo.**
+El guard de propiedad comparaba el identificador del profesional con una prueba
+de desigualdad contra nulo; si tanto el identificador del usuario como el
+parámetro de la ruta resultaran indefinidos, la comparación sería verdadera y
+concedería el acceso a un solicitante sin identidad profesional alguna. La
+situación no es alcanzable en las rutas actuales, pero el guard se aplica a
+nivel de controlador en los recursos anidados, de modo que cualquier ruta nueva
+lo hereda y el modo de falla debe ser la denegación. Se corrigió además la
+comparación de identificadores, que era sensible a mayúsculas y habría denegado
+a un profesional el acceso a su propio registro.
+
+**Se cerraron los huecos de cobertura de pruebas.** El más relevante era el
+camino de verificación de pertenencia en los recursos anidados: dado que el
+guard admite deliberadamente a cualquier administrador sin mirar la
+organización, esa verificación dentro del servicio es lo único que impide una
+escritura entre organizaciones, y no estaba ejercitada. Se agregaron también las
+pruebas de identificadores de hijos cruzados, del tope de matrículas en la vía
+de alta conjunta, del vaciado de la grilla —única entrada que ejercita una rama
+del servicio que nunca se había ejecutado con éxito—, y se reforzaron las
+verificaciones de rechazo para que comprueben además que el estado almacenado no
+se alteró. Cinco pruebas que dependían del orden de ejecución pasaron a
+construir sus propios datos.
+
+**El sembrado quedó cubierto por pruebas.** Para ello se lo reestructuró de modo
+que la operación de sembrar una organización sea invocable con su propio espacio
+de identificadores, lo que permite ejercitarla contra una organización
+descartable sin tocar los datos de desarrollo, cuyos identificadores fijos
+colisionarían por diseño. Las pruebas verifican la idempotencia, la convergencia
+ante modificaciones manuales, la eliminación de un profesional retirado del
+plantel y que las filas ajenas al espacio de identificadores del sembrado nunca
+resulten afectadas.
+
 ## Verificación adicional
 
 Además de las suites automatizadas, se levantó el servidor contra la base

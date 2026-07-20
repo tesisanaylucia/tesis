@@ -598,3 +598,36 @@ sus conversores constituiría costo sin beneficio, mientras que un documento de
 convenciones que describe una realidad inexistente induce a desatenderlo por
 completo, incluidas las prescripciones que sí resultan críticas, como el
 acotamiento por organización de toda consulta.
+
+El hallazgo funcionalmente más grave, sin embargo, afectaba a las ausencias, y
+resulta ilustrativo de cómo una decisión de modelado aparentemente inocua puede
+anular una funcionalidad completa. Las fechas de la ausencia se habían modelado
+como marcas temporales, de modo que una ausencia de un solo día se almacenaba
+con el mismo instante como inicio y como fin: un intervalo de longitud nula. Un
+consumidor que preguntara si un turno cae dentro de ese intervalo no bloquearía
+ninguno, con lo que el profesional declaraba un día libre y su agenda permanecía
+intacta. A ello se sumaba que, por corresponder la clínica a la zona horaria
+UTC-3, toda fecha se representaba un día antes de la declarada.
+
+La corrección consistió en aplicar a las ausencias el mismo criterio que el
+propio sistema ya había adoptado para los horarios de atención, y por idéntica
+razón: una ausencia es un hecho de calendario, no un instante. Las fechas pasaron
+a expresarse como días de calendario inclusivos, almacenados sin hora ni zona
+horaria, de manera que una ausencia de un día bloquea efectivamente ese día. Se
+descartó la alternativa de normalizar las marcas temporales al comienzo y al fin
+del día en la zona horaria de la clínica, por requerir aritmética de husos
+horarios y dejar el valor expuesto a la misma clase de error. La coherencia con
+la convención previa no es casual: ambos casos son valores de reloj o de
+calendario tal como los lee la institución, y el proyecto ya había aprendido, al
+modelar los horarios, que atarles un instante introduce una precisión que el
+dominio no posee y una ambigüedad que sí padece.
+
+Al redactar las pruebas de esa corrección se descubrió un defecto adicional que
+ninguna de las revisiones había anticipado: la validación del formato de fecha
+verificaba la forma de la cadena pero no la existencia del día, de modo que una
+fecha imposible como el 31 de febrero superaba la validación y la conversión
+posterior la desplazaba en silencio al 3 de marzo, registrando un día que el
+solicitante nunca había pedido. La observación es metodológicamente relevante:
+la prueba escrita para verificar una corrección terminó revelando un defecto
+distinto y preexistente, lo que refuerza el valor de acompañar cada corrección
+con su verificación automatizada antes que confiar en la inspección del código.
