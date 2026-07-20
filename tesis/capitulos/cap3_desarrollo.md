@@ -345,3 +345,48 @@ con emisión y auditoría del evento, el rechazo de un rango de fechas
 invertido sin emitir evento, la conservación de la grilla al registrar una
 ausencia, el listado y la cancelación, y el rechazo al operar sobre otro
 profesional.
+
+El módulo se cerró con la configuración de agenda que cada profesional define
+para sí mismo: la duración de sus turnos y la franja horaria extra destinada a
+la primera sesión de un paciente nuevo, que por ser más larga ocupa dos turnos
+consecutivos. Dos de los campos involucrados —la duración de la consulta, en
+minutos, y la franja extra, en horas— ya se habían declarado opcionales en el
+modelado inicial, difiriendo su configuración a esta etapa; a ellos se sumó un
+tercer atributo, ausente del diagrama entidad-relación original, que registra
+dónde se ubica esa franja extra respecto de la agenda habitual. Este último se
+incorporó como un enumerado nuevo con tres valores tomados literalmente de la
+fuente de requisitos: la franja extra como primer turno del día, agregada antes
+de la franja habitual; como último turno del día, agregada después; o dentro de
+la franja habitual, ocupando dos turnos consecutivos de la agenda. Se lo modeló
+en inglés y nullable, en coherencia con los demás enumerados de persistencia y
+con los otros dos campos de configuración, dejando en comentarios del esquema el
+mapeo de cada valor a su semántica en castellano. Es importante subrayar el
+límite del alcance: esta etapa únicamente almacena la configuración; la lógica
+que la aplica al generar los turnos de la agenda, el cupo de un paciente nuevo
+por día y el aviso de la duración de la sesión al paciente corresponden a
+módulos posteriores.
+
+La edición de esta configuración se resolvió con un endpoint dedicado, separado
+del que modifica los datos generales del profesional. Se prefirió esa
+separación por cohesión —los datos identitarios y la configuración de agenda son
+preocupaciones distintas, con validaciones propias—, pero, a diferencia de los
+horarios y las ausencias, no se introdujo un controlador ni un servicio nuevos:
+como la configuración son campos de la propia entidad profesional y no una
+entidad aparte, el método se sumó al controlador y al servicio ya existentes,
+reutilizando la verificación de pertenencia al tenant, el registro de auditoría
+y el guard de propiedad. La operación respeta la semántica de una modificación
+parcial: solo se escriben los campos presentes en la petición y los omitidos se
+dejan intactos, de modo que un profesional pueda ajustar un único parámetro sin
+reenviar el resto de su configuración. Las validaciones de los criterios de
+aceptación —duración estrictamente positiva y franja extra no negativa, con el
+cero admitido como ausencia de tiempo extra, y modalidad restringida a los tres
+valores del enumerado— se ubicaron en el DTO por tratarse de restricciones de
+forma sobre campos aislados, en coherencia con el criterio ya adoptado para
+distinguir la validación de forma de la regla de negocio. La verificación
+combinó una prueba unitaria del servicio, que aísla la persistencia de los tres
+valores de modalidad y la semántica de modificación parcial con el cliente de
+datos simulado, con pruebas end-to-end que ejercitan sobre la interfaz HTTP la
+configuración y persistencia de las tres modalidades, el rechazo de una
+duración no positiva, de una franja negativa, de una duración no entera y de una
+modalidad desconocida, y las reglas de autorización y aislamiento por tenant ya
+habituales en el módulo.
