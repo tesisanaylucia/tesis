@@ -500,3 +500,32 @@ cambio, se verificó manualmente y no mediante una prueba automatizada, dado que
 ejecutarlo desde el conjunto de pruebas introduciría un efecto colateral sobre
 la base de datos compartida que las demás pruebas —que crean sus propias
 organizaciones aisladas— no controlan.
+
+Una revisión integral del módulo, realizada una vez completadas sus tareas,
+puso de manifiesto una decisión de diseño que convenía revisar. La consulta de
+profesionales devolvía la especialidad y las matrículas, pero no la grilla de
+horarios de atención, accesible únicamente a través de su sub-recurso dedicado.
+Dado que el motor de agenda y la capa conversacional necesitan esa grilla para
+determinar qué turnos ofrecer, la separación los habría obligado a consultar el
+listado y luego, por cada profesional, su grilla, incurriendo en el patrón de
+consulta conocido como N+1. Se optó por incorporar la grilla a la definición
+compartida de las relaciones que acompañan al profesional, ordenada por día de
+la semana y hora de inicio para que los consumidores puedan confiar en ese
+orden. El criterio que sostiene la decisión es el volumen: la grilla es acotada
+—unos pocos bloques semanales—, de modo que transportarla resulta más económico
+que la consulta adicional que evita; el sub-recurso dedicado se conserva, pues
+sigue siendo la vía para reemplazarla.
+
+Esa corrección puso al descubierto una segunda, de naturaleza distinta. Los
+servicios de los recursos anidados anclaban cada operación en el profesional
+padre invocando el método que lo carga junto con todas sus relaciones, cuando
+únicamente necesitaban la garantía de que existe y pertenece al tenant del
+solicitante; las relaciones cargadas se descartaban. La ineficiencia era
+tolerable mientras se limitaba a la especialidad y las matrículas, pero al
+sumarse la grilla de horarios toda operación sobre una matrícula o una ausencia
+habría pasado a cargarla sin usarla. Se introdujo entonces una verificación de
+pertenencia liviana, con idéntica semántica de no encontrado pero sin cargar
+relación alguna, y se la adoptó en los puntos donde la entidad completa no se
+utilizaba. El episodio ilustra un riesgo propio del trabajo incremental: una
+mejora local puede convertir una ineficiencia latente en un problema efectivo si
+no se revisa el efecto conjunto sobre el resto del módulo.

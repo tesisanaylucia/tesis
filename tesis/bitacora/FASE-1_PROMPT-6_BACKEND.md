@@ -119,6 +119,62 @@ dos veces consecutivas y contando las filas resultantes.
   tests) completas en verde; `eslint` sin errores y verificación de tipos sin
   errores. Los datos usados son ficticios.
 
+## Revisión del módulo y correcciones posteriores
+
+Cerrada la tarea, se realizó una revisión integral del módulo que detectó tres
+defectos, corregidos en el mismo branch.
+
+**La consulta de profesionales no devolvía la grilla de horarios de atención.**
+El dato existía y era accesible, pero únicamente a través del sub-recurso
+dedicado, de modo que el motor de agenda y la capa conversacional —que necesitan
+la grilla para determinar qué turnos ofrecer— habrían tenido que consultar el
+listado y luego, por cada profesional, su grilla: un patrón de consulta N+1. Se
+incorporó la grilla a la definición compartida de qué relaciones se cargan junto
+al profesional, ordenada por día de la semana y hora de inicio para que los
+consumidores puedan confiar en ese orden. El volumen es acotado —unos pocos
+bloques semanales por profesional—, por lo que el costo de transportarla es
+menor que el de la consulta adicional que evita. El sub-recurso dedicado se
+mantiene, ya que sigue siendo la vía para reemplazar la grilla.
+
+**La verificación de pertenencia cargaba relaciones que descartaba.** Los
+servicios de matrículas, horarios y ausencias anclaban cada operación en el
+profesional padre invocando el método que lo carga con todas sus relaciones,
+cuando solo necesitaban la garantía de que existe y pertenece al tenant del
+solicitante. El defecto era menor hasta que la corrección anterior lo agravó: al
+sumar la grilla a esas relaciones, toda operación sobre una matrícula o una
+ausencia habría pasado a cargar además la grilla semanal completa. Se incorporó
+un método de verificación liviano, con la misma semántica de "no encontrado"
+pero sin cargar relación alguna, y se lo adoptó en los ocho puntos donde la
+carga completa no se utilizaba. Es un caso ilustrativo de cómo una corrección
+puede convertir una ineficiencia latente en un problema real si no se revisa el
+efecto conjunto.
+
+**La colección de Postman contenía nombres de petición repetidos.** Cuatro
+controladores comparten el segmento inicial de ruta y, por lo tanto, la misma
+carpeta de la colección, mientras que el generador derivaba el nombre
+únicamente del nombre del método del controlador; el resultado eran varias
+peticiones homónimas ("Create", "Remove", "Find All") indistinguibles en la
+interfaz. Se calificó el nombre con el recurso anidado, tomándolo del prefijo
+del decorador de controlador y no de la ruta del método: esa distinción es la
+que evita calificar erróneamente una acción que cuelga del propio profesional,
+como la de configuración, que es un método del controlador principal y no un
+recurso anidado. Además, el nombre pasó a regenerarse siempre en lugar de
+conservarse del archivo existente —es un dato derivado, no una personalización
+del usuario, y conservarlo habría impedido que la corrección se propagara a la
+colección ya versionada—, mientras que las partes efectivamente redactadas a
+mano (descripciones, cuerpos de ejemplo y scripts de prueba) se siguen
+preservando. Por último, se agregó al generador una verificación que aborta si
+alguna carpeta queda con nombres repetidos, para que esta clase de defecto no
+vuelva a pasar inadvertida.
+
+## Verificación adicional
+
+Además de las suites automatizadas, se levantó el servidor contra la base
+sembrada y se ejercitó la API con credenciales reales: la consulta de
+profesionales devuelve los cinco registros del plantel con sus dos matrículas,
+su grilla de horarios en el orden esperado y su configuración base, sin exponer
+el identificador de organización.
+
 ## Figuras pendientes
 
 - Ninguna nueva.
