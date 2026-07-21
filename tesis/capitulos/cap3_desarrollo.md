@@ -699,3 +699,114 @@ solicitante nunca había pedido. La observación es metodológicamente relevante
 la prueba escrita para verificar una corrección terminó revelando un defecto
 distinto y preexistente, lo que refuerza el valor de acompañar cada corrección
 con su verificación automatizada antes que confiar en la inspección del código.
+
+### 3.2.2 Pacientes
+
+El segundo módulo de negocio siguió el mismo criterio de apertura que el
+anterior: antes de construir la gestión, se estabilizó el modelo de datos. Se
+incorporaron al esquema cuatro entidades tomadas del diagrama entidad-relación
+y del documento de especificación de requisitos: el paciente, el vínculo entre
+un paciente y cada profesional que lo atiende, el consentimiento de tratamiento
+de datos y la solicitud de receta. La tarea se acotó nuevamente al esquema y su
+migración, sin endpoints ni servicios, que corresponden a las tareas siguientes
+de la fase.
+
+La primera decisión de modelado atiende a un requisito explícito: el sistema
+identifica al paciente por su número de documento. La unicidad se declaró, sin
+embargo, sobre el par formado por la organización y el documento, y no sobre el
+documento solo. En un sistema diseñado para marca blanca la misma persona puede
+ser paciente de dos organizaciones distintas, y cada una debe poder mantener su
+propio registro; una unicidad global habría hecho que el alta en una impidiera
+el alta en la otra, convirtiendo una coincidencia legítima en un conflicto.
+
+La segunda atiende a la ubicación de los datos que varían según quién observe
+al paciente. El diagrama sitúa en la tabla de vínculo la prioridad, las
+observaciones de uso interno, el correo, el contacto de emergencia, el
+indicador de primera sesión, el tipo de paciente y la fecha de última consulta,
+y esa ubicación se respetó porque expresa un hecho del dominio y no una
+comodidad de implementación: una misma persona puede ser paciente nuevo para un
+profesional y recurrente para otro, con prioridad y observaciones distintas en
+cada caso. Alojar esos campos en el paciente habría obligado a elegir
+arbitrariamente cuál de las descripciones prevalece.
+
+La tercera obligó a precisar la regla de normalización que el proyecto había
+adoptado en la revisión del modelo de datos, según la cual el identificador de
+organización no se replica en ninguna entidad alcanzable a través de un padre
+que ya lo posee. El vínculo entre paciente y profesional no tiene un padre sino
+dos, ambos acotados por organización, y ese caso no estaba contemplado. El
+criterio adoptado es que la columna se conserva cuando restringe algo que
+ningún padre determina por sí solo. Con un único padre la columna es una
+réplica pura y se omite, como en el consentimiento. Con dos padres, en cambio,
+esa única columna es lo que obliga a que ambos pertenezcan a la misma
+organización, restricción que ningún par de claves foráneas independientes
+puede expresar; y, al ser leída por las dos claves foráneas compuestas en cada
+escritura, tampoco puede divergir de ninguno de los dos padres, que era
+precisamente el riesgo invocado para prohibir la réplica. La base de datos
+rechaza así por sí misma el estado en que un paciente de una organización
+aparece tratado por un profesional de otra, sin depender de que cada camino de
+servicio recuerde verificarlo.
+
+El mismo razonamiento se aplicó a la solicitud de receta, con una consecuencia
+que se aparta de la letra del diagrama. Éste dibuja dos claves foráneas
+independientes, hacia el paciente y hacia el profesional; se optó en cambio por
+una única clave foránea compuesta contra el vínculo, que resuelve a la vez tres
+cuestiones que las dos flechas dejaban abiertas: que ambas filas pertenezcan a
+una organización, que pertenezcan a la misma, y que el paciente esté
+efectivamente en tratamiento con el profesional a quien pide la receta, que es
+el único caso que los requisitos describen. Como efecto derivado, la solicitud
+no necesita identificador de organización propio, porque el del vínculo al que
+apunta lo determina.
+
+El consentimiento de tratamiento de datos, exigido por la Ley 25.326, se modeló
+como una tabla de solo agregado: carece de columna de última modificación, y una
+revocación se registra como una fila nueva en lugar de editar la anterior, de
+modo que el historial de qué se aceptó y cuándo permanece íntegro. La marca
+temporal del consentimiento se mantuvo separada de la de creación de la fila,
+distinción que permite incorporar consentimientos firmados en papel sin falsear
+la fecha del acto.
+
+La tarea salda además una deuda que el propio esquema venía declarando. La traza
+de auditoría reservaba desde su creación una columna para referenciar al
+paciente, que hasta ahora era un identificador sin clave foránea porque la tabla
+destino no existía; al existir, se la convirtió en clave foránea compuesta real.
+La elección del comportamiento ante el borrado del paciente resultó
+significativa: una clave foránea compuesta no admite anular la referencia,
+porque anularía también el identificador de organización, que es no nulable, y
+propagar el borrado destruiría la traza que documenta lo actuado sobre ese
+paciente. Se optó por restringirlo, con la consecuencia deliberada de que un
+paciente con historial de auditoría no puede eliminarse físicamente. Lejos de
+constituir una limitación, ésa es la forma adecuada para datos de salud bajo la
+norma citada: un pedido de supresión se atiende anonimizando el registro del
+paciente, mientras la traza que acredita que la supresión ocurrió debe
+sobrevivirle.
+
+Por último, el carácter obligatorio de cada campo se decidió por la realidad del
+dato y no por su deseabilidad. Sólo el documento, el nombre y el apellido son
+obligatorios; la clave tributaria, la fecha de nacimiento y el teléfono celular
+se declararon opcionales porque la migración de pacientes preexistentes
+importará registros que hoy viven en planillas de cálculo y en papel, donde esos
+datos suelen faltar. La exigencia de documento, fecha de nacimiento y contacto
+de emergencia que fijan los requisitos es una regla del flujo de reserva de
+turnos, no una razón para rechazar un registro histórico incompleto. La edad,
+que los requisitos enumeran entre los datos filiatorios, no se almacena sino que
+se deriva de la fecha de nacimiento, de modo que no puede quedar desactualizada.
+Las fechas de nacimiento y de última consulta se modelaron como fechas de
+calendario, sin hora ni huso horario, siguiendo la convención adoptada para las
+ausencias, mientras que el consentimiento y la solicitud de receta se modelaron
+como instantes, porque la norma se interesa por el momento del consentimiento y
+porque los requisitos restringen el pedido de recetas al horario laboral, donde
+la hora del día forma parte del hecho.
+
+La verificación se realizó mediante pruebas de integración contra la instancia
+local de PostgreSQL, planteadas de modo que cada garantía declarada en el
+esquema quede demostrada como restricción efectiva de la base de datos y no como
+intención documentada. Se comprueba el rechazo de un documento repetido dentro
+de una organización junto con su admisión en otra, la independencia de las
+observaciones y la prioridad entre dos vínculos del mismo paciente, el rechazo
+del vínculo que cruza organizaciones reclamando la organización de cualquiera de
+los dos lados, el rechazo de una solicitud de receta dirigida a un profesional
+que no trata al paciente, el carácter acumulativo del historial de
+consentimientos y la propagación en cascada del borrado del paciente sobre sus
+entidades dependientes. El diagrama entidad-relación acotado a este subdominio
+queda pendiente de incorporación como figura.
+
