@@ -810,3 +810,153 @@ consentimientos y la propagación en cascada del borrado del paciente sobre sus
 entidades dependientes. El diagrama entidad-relación acotado a este subdominio
 queda pendiente de incorporación como figura.
 
+Estabilizado el modelo, la tarea siguiente construyó sobre él la gestión
+propiamente dicha: el alta, la modificación, la baja y la consulta de pacientes,
+la búsqueda por número de documento dentro de la organización, la administración
+del vínculo con cada profesional tratante y un punto de consulta que responde
+las dos reglas que los requisitos imponen antes de reservar un turno. El módulo
+expone los datos que el flujo de reserva necesitará; la conversación que los
+usará pertenece a fases posteriores.
+
+La baja exigió una columna que el diagrama no contempla. Los requisitos piden
+que sea lógica, y el diagrama no asigna al paciente ningún atributo de ciclo de
+vida, de modo que se agregó una marca de estado activo con el mismo criterio ya
+aplicado al profesional. La alternativa de eliminar la fila resultaba inviable
+por dos razones convergentes, y ambas provienen del propio esquema: los vínculos
+de tratamiento y los consentimientos se eliminarían en cascada, y la traza de
+auditoría restringe por sí misma el borrado de un paciente que menciona. El
+esquema, en otras palabras, ya había decidido que un paciente no se elimina; la
+columna se limita a darle al módulo la forma de expresarlo. La reactivación se
+resolvió como una modificación ordinaria de esa marca y no como un alta nueva,
+porque un paciente que regresa tras años es la misma persona con el mismo
+historial, y un alta chocaría además con la unicidad del documento.
+
+La construcción del módulo obligó, además, a revisar una ubicación heredada del
+diagrama entidad-relación. El contacto de emergencia y el correo electrónico
+estaban modelados en el vínculo paciente-profesional, tal como el diagrama los
+dibuja, y la tarea anterior los había respetado por fidelidad a esa fuente. Al
+implementar la gestión se hizo evidente que la ubicación era incorrecta: se trata
+de datos de la persona, que el propio documento de requisitos enumera entre los
+datos de contacto del paciente y que una reserva exige con independencia del
+profesional con quien sea. Sostener una copia por profesional tratante dejaba la
+pregunta por el contacto de emergencia de un paciente con tantas respuestas
+posibles como profesionales lo atendieran, y sin ninguna regla para elegir entre
+ellas —exactamente el defecto que las restantes decisiones de modelado se habían
+ocupado de evitar—. Ambos campos se trasladaron a la entidad Paciente mediante
+una migración que copia los valores existentes antes de eliminar las columnas,
+conservando, cuando hay varios vínculos con dato cargado, el del vínculo
+modificado más recientemente. En el vínculo permanece únicamente aquello que sí
+varía según quién observe al paciente: la prioridad que ese profesional asigna,
+sus observaciones de uso interno, el tipo de paciente que es para él, el
+indicador de primera sesión y la fecha de la última consulta. La divergencia
+respecto del diagrama es deliberada y queda documentada como tal, tanto en el
+esquema como en la bitácora de la tarea.
+
+Como consecuencia de ese traslado, los tres datos que los requisitos exigen para
+reservar —documento, fecha de nacimiento y contacto de emergencia— son atributos
+del paciente y se validan en un único lugar, el alta. Sus columnas siguen
+admitiendo nulos para que la migración de registros preexistentes pueda importar
+legajos incompletos: la obligatoriedad reside en el contrato del endpoint
+interactivo y no en la columna, asimetría que se documentó de forma explícita
+para que no se interprete como un descuido. La vinculación con un profesional
+queda entonces identificada por completo por la dirección del recurso, sin
+cuerpo obligatorio.
+
+La vinculación de un paciente con un profesional se definió como idempotente. El
+vínculo queda identificado por completo por la dirección del recurso, y quien
+más necesita esa operación, el asistente conversacional que toma una reserva, no
+puede saber de antemano si el paciente ya estaba vinculado. Bajo la lectura
+estricta del verbo de creación, ese desconocimiento obligaría a consultar antes
+de vincular y a tratar el conflicto como caso corriente, siendo que para un
+paciente recurrente es precisamente la situación normal. Una segunda invocación,
+por tanto, no falla: aplica lo que el cuerpo haya traído y devuelve el vínculo
+existente, respondiendo con el código de éxito ordinario en lugar del de
+creación, porque la respuesta describe el estado del vínculo y no afirma haberlo
+creado en esa invocación. El indicador de primera sesión conserva el valor por
+defecto de la columna al crearse y no se altera al repetir la operación: ese
+valor por defecto es, precisamente, la regla según la cual el sistema debe
+validar si es la primera vez que el paciente se atiende con ese profesional, y
+reafirmarlo desde el servicio le daría un segundo lugar desde el cual divergir.
+La traza de auditoría sí distingue creación de actualización, de modo que la
+diferencia que la respuesta deliberadamente no expone no se pierde.
+
+El plazo de un año tras el cual el sistema solicita al paciente la actualización
+de sus datos de contacto se trató como configuración de la organización y no
+como una constante del código, en continuidad con el criterio de reglas de
+negocio como datos adoptado en las fases anteriores. Se optó por una única clave
+de configuración, aun cuando gobierna dos reglas distintas —la actualización de
+datos y la reclasificación del paciente como nuevo, esta última correspondiente
+a la tarea siguiente—, porque dos claves independientes admitirían valores
+divergentes y producirían un paciente al que se le piden datos actualizados
+mientras se lo sigue tratando como recurrente. Un valor configurado que no sea un
+número entero positivo se descarta en favor del valor por defecto, dado que la
+configuración se almacena como documento JSON y ninguna otra verificación se
+interpone entre un error de tipeo y una fecha de corte carente de sentido.
+
+La fila con el valor por defecto se crea mediante una migración de datos y no
+únicamente en el seed, distinción que resultó relevante y que quedó incorporada
+como convención del proyecto. El seed es dato de desarrollo y del piloto, y no se
+ejecuta en un entorno real: una regla sembrada sólo allí existiría en producción
+exclusivamente como constante del código, y la fila que un operador buscaría en
+la tabla de configuración no estaría. La migración la inserta para toda
+organización existente, el seed cubre las que se creen con posterioridad y el
+servicio conserva el mismo valor como respaldo cuando la fila falta; los tres
+caminos leen una única constante, de modo que no pueden discrepar entre sí.
+Ninguno de ellos sobrescribe un valor ya modificado por la clínica: ambos
+mecanismos de alta son idempotentes y respetan la decisión registrada.
+
+La visibilidad de los datos incorporó una restricción más estrecha que la de
+organización. Sobre el aislamiento por organización, que el sistema ya garantiza
+en toda consulta, se añadió que el rol profesional alcance únicamente a los
+pacientes con los que tiene vínculo de tratamiento. La restricción se
+implementó como filtro del camino de lectura y no como verificación posterior,
+de modo que un paciente que el profesional no atiende resulta indistinguible de
+uno inexistente: responder que el acceso está prohibido confirmaría que el
+registro existe, lo que constituye ya una revelación. Del mismo modo, cuando dos
+profesionales comparten un paciente, cada uno recibe solamente su propio
+vínculo, puesto que la prioridad, el contacto y —cuando la tarea correspondiente
+las incorpore— las observaciones de uso interno son juicio de ese profesional y
+no del colega; el personal administrativo, en cambio, sigue viendo el legajo
+completo.
+
+Toda mutación se audita dentro de la misma transacción que la produce y con la
+referencia real al paciente que la clave foránea agregada en la tarea anterior
+hizo posible, de modo que una consulta de cumplimiento pueda establecer qué se
+hizo sobre un paciente sin interpretar identificadores genéricos. El detalle de
+una modificación enumera qué campos cambiaron y nunca su contenido, porque el
+contenido es dato personal y la traza no es el lugar donde deba replicarse. La
+implementación reveló un matiz digno de mención: enumerar las claves del objeto
+recibido no produce esa lista, porque la biblioteca de transformación instancia
+todas las propiedades declaradas en el tipo, de modo que una modificación de un
+único campo generaba una entrada que declaraba haber cambiado todos. Una traza
+que sobredeclara cambios es peor que una sin detalle, ya que es contra ella que
+se audita; la corrección se factorizó en una función propia con su prueba
+unitaria y la regla se incorporó a las convenciones del repositorio.
+
+La tarea aprovechó además para consolidar tres piezas que se repetían. La
+conversión entre fechas de calendario y los valores que la biblioteca de acceso
+a datos expone, que vivía dentro del servicio de ausencias, se extrajo a un
+único lugar y se amplió con el desplazamiento por meses —ajustado al último día
+del mes destino, para que un año antes del 31 de marzo sea el 28 o el 29 de
+febrero y no el 3 de marzo— y con el cálculo de edad a partir de la fecha de
+nacimiento. La verificación de que un profesional actúa sobre su propio registro
+se generalizó para leer el identificador del parámetro de ruta que cada ruta
+declare, ya que en este módulo el parámetro principal designa al paciente. Y la
+validación de identificadores contra el catálogo de obras sociales se centralizó
+en el servicio del catálogo, del que ahora dependen tanto el módulo de
+profesionales, que registra cuáles acepta cada uno, como el de pacientes, que
+registra cuál cubre a cada paciente.
+
+La verificación se realizó nuevamente por la capa HTTP, con credenciales reales
+de cada rol, cubriendo el ciclo completo de gestión, el rechazo con error de
+validación de cada dato obligatorio ausente o mal formado, el conflicto ante un
+documento repetido dentro de la organización junto con su admisión en otra, la
+independencia de los vínculos de un mismo paciente con dos profesionales, el
+alcance de cada rol sobre los datos, la obediencia al umbral de inactividad
+configurado y la baja lógica con su recuperación posterior. Se incluyó
+deliberadamente una prueba de que las observaciones de uso interno no aparecen
+en ninguna respuesta del módulo, para que la restricción de acceso que la tarea
+correspondiente diseñará no quede anticipadamente vulnerada. El mapa de
+endpoints del módulo con sus permisos por rol queda pendiente de incorporación
+como figura.
+
