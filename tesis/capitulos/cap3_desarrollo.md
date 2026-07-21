@@ -960,3 +960,90 @@ correspondiente diseñará no quede anticipadamente vulnerada. El mapa de
 endpoints del módulo con sus permisos por rol queda pendiente de incorporación
 como figura.
 
+La tarea siguiente incorporó las reglas que gobiernan el vínculo entre paciente
+y profesional: la clasificación del paciente como nuevo o recurrente, el
+registro de su última consulta y la consulta de la prioridad que el profesional
+mantiene. Las columnas correspondientes ya existían desde la primera tarea de la
+fase, de modo que lo aportado aquí es la lógica y no el esquema. Los requisitos
+establecen que un paciente es nuevo en su primera sesión con un profesional
+determinado y pasa a recurrente una vez completada, que si deja de concurrir por
+más de un año vuelve a marcarse como nuevo, y que la prioridad la define y carga
+el profesional para que el motor de turnos la consuma al reasignar.
+
+La reclasificación por inactividad se resolvió como evaluación en la lectura y
+no mediante un proceso programado periódico, según indican las fuentes. Sobre
+esa base quedaba abierta una segunda decisión: si la reclasificación debía
+además escribirse en la base o recalcularse en cada lectura sin tocar la fila. Se
+optó por escribirla. Calcularla sin persistirla dejaría la columna almacenada en
+desacuerdo permanente con lo que los puntos de consulta informan, de modo que
+cualquier lector ajeno a esos puntos —una consulta directa a la tabla, un
+informe, el propio motor de turnos— observaría un valor que el sistema ya
+considera caduco. La escritura se realiza mediante una única sentencia que nombra
+exactamente los vínculos leídos, y no con una condición general sobre la tabla,
+para que la lectura de un paciente no altere en silencio filas que quien
+consulta nunca solicitó.
+
+La regla misma se ubicó en una función pura, aislada del acceso a datos, y el
+servicio que la rodea se limita a resolver las fechas que necesita y a persistir
+lo que decide. La separación responde a la naturaleza de lo que debe validarse:
+un límite entre dos días del calendario se comprueba mejor sin base de datos,
+mientras que las consecuencias que ninguna función pura puede exhibir —que la
+regla efectivamente se ejecute al leer, que la reclasificación quede escrita y
+que todos los puntos de consulta coincidan— se verifican por separado mediante
+pruebas de integración.
+
+El límite temporal exigió una decisión explícita, por discrepancia entre las
+fuentes. El documento de requisitos habla de "más de un año", expresión que en
+sentido estricto excluye el aniversario exacto, mientras que el criterio de
+aceptación de la tarea sitúa la reclasificación a los trescientos sesenta y
+cinco días cumplidos; la tarea anterior, además, había implementado el mismo
+umbral para la solicitud de actualización de datos con el límite excluyente. Se
+adoptó el límite inclusivo para ambas reglas, unificándolas en una única función
+compartida. El criterio que ordenó la elección fue la consistencia: los
+requisitos enuncian las dos reglas con la misma frase, de manera que dos
+comparaciones separadas por un día producirían un paciente considerado nuevo al
+que sin embargo no se le solicitan datos actualizados, precisamente la clase de
+divergencia silenciosa que el diseño del esquema se había ocupado de evitar. El
+costo asumido es un desplazamiento de un día en el comportamiento previamente
+entregado, que se juzgó preferible a sostener dos versiones de una misma regla.
+
+El registro de la última consulta se definió como monótono: una sesión antigua
+cargada con posterioridad no retrasa la fecha almacenada, puesto que el dato
+existe para responder cuánto hace que el paciente no concurre y una carga tardía
+no vuelve más lejana la última asistencia. La condición se expresó dentro de la
+propia sentencia de actualización y no como comparación previa en el servicio,
+dado que leer el valor y decidir después permitiría que dos turnos completados de
+forma concurrente leyeran ambos la fecha anterior y que el último en escribir la
+retrasara, patrón de lectura seguida de escritura que el nivel de aislamiento
+predeterminado no protege.
+
+Completar la primera sesión determina dos hechos simultáneos: que el paciente
+deja de ser nuevo para ese profesional y que su primera sesión deja de estar
+pendiente. Se resolvió escribir ambos campos en el mismo momento, en lugar de
+diferir el segundo a la fase de turnos como preveía una anotación previa, porque
+un indicador de primera sesión activo junto a un paciente ya recurrente
+constituye un estado internamente contradictorio, y porque de ese indicador
+dependerá el cálculo de la duración del turno: la primera sesión ocupa dos turnos
+consecutivos, de modo que un valor caduco no sería un detalle cosmético sino una
+agenda mal calculada. Ambos campos se escriben sin condicionarlos a la fecha,
+porque registrar una sesión antigua sigue constituyendo constancia de
+asistencia; si esa sesión resulta anterior al umbral, la regla de inactividad la
+reclasifica en la lectura siguiente, de manera que ambas reglas se componen en
+lugar de contradecirse.
+
+El registro de la consulta se expuso como servicio interno y no como operación
+del contrato HTTP. La única evidencia de asistencia que el sistema posee es un
+turno que pasó a completado, y admitir la carga directa de la fecha equivaldría
+a aceptar una afirmación sobre asistencia que ningún turno respalda. El servicio
+admite que quien lo invoca le entregue la transacción en curso, de modo que un
+turno confirmado como completado y una consulta nunca registrada no puedan
+ocurrir por separado. Se optó por una dependencia directa entre módulos y no por
+un puerto con su adaptador, en aplicación del criterio ya fijado: los puertos
+existen para las integraciones externas y para los casos en que el módulo
+productor no debe conocer a su consumidor, mientras que aquí la dirección es la
+inversa —el módulo de turnos depende del de pacientes, que ya existe—, de modo
+que no hay nada que invertir y un puerto sólo agregaría indirección.
+
+El diagrama de estados del tipo de paciente, con las transiciones que lo
+gobiernan, queda pendiente de incorporación como figura.
+
