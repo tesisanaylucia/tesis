@@ -148,6 +148,74 @@ diagnósticos resulta necesario más adelante, queda documentado que deberá
 diseñarse desde cero con su propio diagrama entidad-relación, en lugar de
 recuperar este modelo descartado.
 
+Cerrado el primer módulo de negocio y antes de abordar los siguientes, se
+revisó el esquema completo contra tres criterios explícitos —integridad,
+normalización y relaciones lógicas— con el objeto de asentar sobre una base
+correcta el trabajo restante. La revisión encontró que el esquema satisfacía
+el aislamiento entre organizaciones en tiempo de ejecución pero no lo
+sostenía en la base de datos misma: ninguna de las referencias a la
+organización era una clave foránea real, sino un identificador universal sin
+restricción alguna. La base aceptaba, en consecuencia, filas que apuntaban a
+organizaciones inexistentes. Que la carencia no fuera hipotética se comprobó
+al declarar las restricciones: una suite de pruebas existente creaba usuarios
+contra un identificador de organización inventado, sin fila que lo
+respaldara, y venía pasando en verde.
+
+La segunda observación afectó a una decisión de diseño previa. El esquema
+replicaba deliberadamente el identificador de organización en las entidades
+hijas —horarios de atención y ausencias, que pertenecen a un profesional que
+ya lo lleva— con el argumento de que así toda consulta se acota sin unir
+tablas. Se revirtió ese criterio. El costo de la réplica es un valor capaz de
+discrepar del de su padre, y esa discrepancia constituye una corrupción que
+ninguna consulta puede detectar, puesto que la fila pertenece a una
+organización según su propia columna y a otra según su padre. El beneficio,
+en contrapartida, es una unión evitada sobre una tabla indexada, en un
+sistema cuyo volumen previsto es el de una clínica. Se adoptó, por tanto, el
+criterio de que el identificador de organización reside en las entidades que
+pertenecen al inquilino de forma directa y carecen de padre por el cual
+alcanzarse, y nunca en aquellas que sí lo tienen, las cuales se consultan
+anclando la operación en la verificación de pertenencia de su padre. Queda
+consignado que una desnormalización controlada podrá evaluarse ante un
+problema de rendimiento medido, y no de forma preventiva.
+
+El caso en que el identificador de organización debe permanecer se resolvió
+mediante claves foráneas compuestas: cuando una entidad lo conserva y además
+referencia a otra entidad acotada por inquilino, la clave se declara sobre el
+par formado por la organización y el identificador destino, contra una
+restricción de unicidad equivalente en el destino. La base rechaza entonces
+por sí misma todo vínculo entre organizaciones distintas —un profesional con
+una especialidad ajena, una cuenta vinculada a un profesional ajeno, una
+entrada de auditoría atribuida a un usuario ajeno— en lugar de confiar en que
+cada camino de servicio recuerde comprobarlo. Esta construcción es lo que
+vuelve segura, y no meramente cómoda, la permanencia del identificador donde
+resulta necesaria: el registro de auditoría, cuya referencia a la entidad
+auditada es polimórfica y por ello irreconstruible mediante uniones.
+
+La revisión corrigió, por último, un error de modelado en el catálogo de
+obras sociales, que estaba acotado por organización. Una organización no
+tiene obras sociales: estas existen con independencia de ella, y lo propio
+del dominio es qué obras sociales acepta cada profesional. El catálogo
+almacenaba así la misma entidad una vez por organización y dejaba, aun así,
+sin responder la pregunta relevante. Se lo convirtió en catálogo global con
+nombre único y se incorporó una relación opcional de muchos a muchos entre
+profesional y obra social. El catálogo de especialidades, en cambio, se
+mantuvo acotado por organización, dado que la nomenclatura de especialidades
+sí es propia de cada clínica.
+
+La corrección del esquema dejó, sin embargo, esa relación sin ninguna vía de
+acceso desde la API. Se cerró el hueco en la misma intervención, exponiendo el
+catálogo global mediante un endpoint de solo lectura independiente del módulo
+de Profesionales, y la aceptación por profesional mediante un recurso anidado
+que sigue el mismo patrón de reemplazo completo ya usado para la grilla de
+horarios: un `PUT` idempotente que declara el conjunto entero de obras
+sociales aceptadas, con el arreglo vacío como valor válido para un profesional
+que solo atiende de forma particular. A diferencia de la grilla de horarios,
+la validez del conjunto nuevo no depende del estado anterior, por lo que el
+reemplazo no requiere aislamiento serializable. El conjunto aceptado se
+incorporó además a la respuesta del profesional, por la misma razón que ya
+llevó a incluir la grilla de horarios: evitar que la capa conversacional, al
+filtrar profesionales por obra social, deba resolver una consulta N+1.
+
 ### 3.2.1 Profesionales
 
 El primer módulo de negocio construido sobre las fundaciones fue el de
