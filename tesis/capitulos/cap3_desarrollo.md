@@ -1222,3 +1222,124 @@ módulo —el detalle del paciente, su listado, la vinculación con un profesion
 la edición de la prioridad— contiene el valor almacenado, verificado buscándolo
 en la respuesta serializada completa y no sólo en los campos esperados.
 
+La última tarea de la fase atendió el requisito de carga de pacientes
+preexistentes, cuyos registros la clínica conserva hoy en planillas de cálculo y,
+en algunos casos, únicamente en papel. La particularidad de esta funcionalidad no
+está en la escritura sobre la base, que reutiliza las entidades ya construidas,
+sino en la naturaleza de su entrada: es el único punto de acceso del sistema cuyo
+cuerpo de solicitud es un archivo y no un documento estructurado, y ese archivo lo
+escribió una persona a lo largo de años, de manera que un archivo sin ninguna fila
+defectuosa no existe. De allí la decisión que gobierna todo el diseño: la
+importación es parcial por naturaleza, intenta todas las filas, persiste las
+válidas y responde con un informe que enumera las rechazadas indicando el número
+de fila, el campo y el motivo. Una carga de todo o nada habría significado que la
+clínica no puede migrar hasta que la planilla sea perfecta, es decir, que no puede
+migrar.
+
+La identidad de una fila se hizo coincidir con la que el modelo de datos ya
+declaraba para un paciente: su número de documento dentro de la organización. La
+importación resulta así idempotente, y ejecutar dos veces el mismo archivo
+actualiza los mismos registros en lugar de duplicarlos. Esa propiedad no es un
+refinamiento sino la condición que vuelve seguro el ciclo natural de trabajo
+—cargar, leer el informe, corregir en la planilla las filas señaladas y volver a
+cargarla entera—, y se complementó con una segunda regla: sólo se escriben las
+celdas que el archivo trae. Una celda vacía significa ausencia de información y
+nunca orden de borrar, porque la planilla es una fotografía incompleta del pasado
+y no la verdad sobre el presente; por la misma razón la marca de baja lógica queda
+enteramente fuera del alcance de la importación, ya que un archivo que enumera a
+todos los pacientes que la clínica alguna vez atendió no constituye un pedido de
+dar de alta nuevamente a quienes fueron dados de baja.
+
+La lectura del archivo se separó del dominio y quedó como componente común: recibe
+la carga, resuelve el formato por la extensión —el tipo declarado en la solicitud
+varía según el cliente y el software instalado, y no identifica nada de manera
+confiable— y devuelve un encabezado normalizado junto con filas de texto numeradas
+tal como las numera la aplicación de planillas, de modo que un error pueda
+señalarse por la fila que la persona verá al abrir su archivo. Esa capa no sabe
+nada de pacientes; qué significa cada columna y qué valores son admisibles
+pertenece a quien pidió el archivo. Dos decisiones de detalle merecen mención por
+tratarse de errores frecuentes en este tipo de funcionalidad. La primera es que
+toda celda es texto y sigue siéndolo hasta que un cuerpo de solicitud la juzgue:
+una planilla no tiene tipos, y una conversión automática transforma un documento
+escrito con cero inicial en un número que pierde ese cero, y una fecha en un
+instante situado en la zona horaria del servidor; la única excepción es la celda
+con formato de fecha, que se convierte a día calendario por el mismo módulo con
+que el proyecto realiza todos sus cruces entre instante y día. La segunda es que
+el separador se detecta en lugar de suponerse, contando candidatos fuera de las
+comillas en la primera fila: un archivo exportado desde una hoja de cálculo con
+configuración regional en español está separado por punto y coma, y suponer la
+coma habría significado rechazar justamente el archivo que la funcionalidad existe
+para leer.
+
+Las columnas se reconocen por un catálogo de nombres alternativos, sobre
+encabezados normalizados a minúsculas y sin acentos ni puntuación, de manera que
+una misma columna se identifique cualquiera sea la forma en que la clínica la
+escribió. La coincidencia es del nombre completo y no de una parte, para que
+"nombre completo" no sea leído como el nombre de pila, y una columna que el
+sistema no modela —un importe, una anotación administrativa— se ignora en lugar de
+provocar un rechazo, porque toda planilla real trae algunas. La obra social y el
+profesional llegan por nombre, nunca por identificador interno, y se resuelven
+contra la base; cuando un nombre no coincide con ninguno, o coincide con más de
+uno, se informa como error de la fila en lugar de adivinar, ya que dos
+profesionales homónimos son una posibilidad real y elegir entre ellos adosaría la
+historia de un paciente al profesional equivocado. La resolución incluye
+deliberadamente a los profesionales dados de baja, porque una planilla es historia
+y un paciente atendido durante años por alguien que ya no trabaja en la clínica no
+dejó de haber sido atendido por esa persona.
+
+La validación de cada fila se apoyó en los mismos validadores del alta
+interactiva, que hasta entonces cada cuerpo de solicitud del módulo declaraba por
+separado; se extrajeron a un módulo común que hoy comparten el alta, la edición,
+la búsqueda y la importación, de modo que un valor que la importación acepta es
+uno que el alta habría aceptado también. La única asimetría es deliberada y va en
+sentido contrario: la importación exige menos campos obligatorios, porque la fecha
+de nacimiento y el contacto de emergencia son requisitos de la reserva de un turno
+y no del registro de una persona, y rechazar por ellos dejaría fuera del sistema a
+los pacientes más antiguos de la clínica. El punto de acceso que informa qué datos
+le faltan a un paciente, construido en una tarea anterior de esta misma fase, es
+lo que después señala esa carencia cuando el paciente vuelve a atenderse. La
+validación se invoca de forma explícita sobre cada fila en lugar de delegarse en
+la tubería global, porque su resultado no debe ser un rechazo de la solicitud sino
+una entrada del informe, y se emite una entrada por campo y no una por restricción
+incumplida, ya que tres líneas sobre una misma celda producen un informe que hay
+que filtrar antes de poder leerlo. Se admitió además la fecha escrita en orden
+día-mes-año, que es la forma usual en el país, con la precaución de no reparar en
+silencio ningún otro valor: lo que no responde a esa forma pasa intacto al
+validador, que lo rechaza e informa la fila. Esa tolerancia quedó confinada a las
+planillas, mientras la interfaz de programación conserva un formato único, porque
+un cliente se escribe una vez contra un contrato y una planilla la escribe una
+persona.
+
+Cada fila se aplica dentro de su propia transacción, de manera que el fallo de una
+no deshaga las anteriores y que, dentro de ella, la escritura del paciente, el
+vínculo con su profesional y las entradas de auditoría se confirmen como una
+unidad. El requisito de marcar como recurrentes a los pacientes importados que
+tengan historial de consultas se resolvió reutilizando el método que ya traducía
+una asistencia en un tipo de paciente, una marca de primera sesión y una fecha,
+escrito para el momento en que un turno se completa; la fecha de última consulta
+que trae la planilla es ese historial, y reutilizar el método evita que la regla
+tenga un segundo lugar donde divergir. Esa reutilización obligó a una
+reorganización menor de los servicios de la relación paciente–profesional: tanto
+ese método como el que crea el vínculo comprobaban la pertenencia del paciente
+sobre el cliente exterior a la transacción, comprobación que fallaría sobre un
+paciente recién creado dentro de la transacción de la importación y todavía sin
+confirmar, de modo que en cada uno se separó el trabajo transaccional de las
+comprobaciones previas, quedando el método público como punto de entrada de las
+rutas y el trabajo disponible para un llamador que ya estableció ambos extremos.
+La fecha de última consulta queda así escrita únicamente por dos caminos: el turno
+completado y esta migración.
+
+El punto de acceso se reservó al rol administrativo. Cargar una planilla es
+trabajo administrativo que se realiza una vez durante la migración, con una
+persona leyendo el informe que devuelve; el proceso automatizado que atiende la
+conversación registra pacientes de a uno por el punto de acceso ya existente, y un
+profesional queda excluido por la misma razón por la que no da de alta pacientes y
+porque una importación escribe sobre toda la organización y no sólo sobre los
+suyos. Los registros se cargan bajo la organización del usuario autenticado, de
+modo que la misma planilla puede importarse de forma independiente en
+organizaciones distintas. Las entradas de auditoría, además de nombrar los campos
+escritos y nunca sus valores, indican que la escritura provino de una
+importación: un registro cargado desde una planilla y uno escrito por una persona
+responden de manera distinta ante una consulta de rendición de cuentas, y la traza
+es donde esa distinción debe sobrevivir.
+
