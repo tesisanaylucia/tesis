@@ -37,7 +37,7 @@ citas y datos volátiles pendientes de verificación), `en progreso`,
 | 3.1 Arquitectura general | sin iniciar | — | — |
 | 3.2.0 Fundaciones | en progreso | FASE-0_PROMPT-6 (revisión del modelo de datos: integridad referencial, normalización y claves foráneas compuestas) | backend |
 | 3.2.1 Profesionales | completo (pendiente de revisión) | FASE-1_PROMPT-6 (TASK-26, seed del plantel del piloto y cierre de la cobertura de pruebas) | backend |
-| 3.2.2 Pacientes | en progreso | FASE-2_PROMPT-4 (TASK-30, consentimiento de tratamiento de datos, Ley 25.326) | backend |
+| 3.2.2 Pacientes | en progreso | FASE-2_PROMPT-5 (TASK-31, campo observaciones con acceso restringido) | backend |
 | 3.2.3 Motor de Turnos | sin iniciar | — | backend |
 | 3.2.4 Notificaciones y Scheduler | sin iniciar | — | backend |
 | 3.2.5 Capa conversacional y WhatsApp | sin iniciar | — | backend |

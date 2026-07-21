@@ -1146,3 +1146,79 @@ solicitud únicamente ante la ausencia de registro y el comportamiento
 idempotente ante una aceptación ya existente, queda pendiente de incorporación
 como figura.
 
+La última tarea del módulo abordó el campo de observaciones de la relación de
+tratamiento, que los requisitos describen como de uso interno y de manejo
+exclusivo del profesional: sólo él lo carga y lo visualiza, no se utiliza en la
+conversación con el asistente y no se revela nunca al paciente. El campo ya
+existía en el modelo, incorporado con las entidades del módulo; lo que esta
+tarea debía construir era la restricción de acceso, y la dificultad no estaba en
+impedir una lectura sino en impedir todas las que el sistema ya ofrecía, presentes
+y futuras, sobre una relación que se devuelve anidada en cada consulta de
+paciente.
+
+La restricción se resolvió, en consecuencia, en la propia forma en que se lee la
+relación y no en el momento de responder. Hasta entonces las consultas
+recuperaban la fila completa y la función de presentación decidía qué campos
+exponer, de modo que la única barrera entre la observación y una respuesta era
+el cuidado de quien escribiera cada presentador; un campo agregado por descuido a
+esa función, o un presentador nuevo, habrían bastado para publicarla. Se pasó
+entonces a enumerar explícitamente las columnas que cada lectura recupera, y la
+enumeración compartida por todos los caminos del módulo no incluye las
+observaciones. El efecto es doble: la columna no se trae siquiera desde la base
+de datos en ninguna consulta general, y el tipo que el compilador deriva de esa
+enumeración carece de la propiedad, de manera que ningún presentador puede
+reenviarla aunque se lo proponga. Una segunda enumeración, definida como
+extensión de la primera para que ambas no puedan divergir en los campos que
+comparten, agrega la observación y la utilizan únicamente los dos caminos
+autorizados a verla. La alternativa —seguir recuperando la fila entera y omitir
+el campo al presentar— se descartó por ser exactamente la disciplina manual que
+el requisito no puede permitirse.
+
+Sobre esa base, la autorización quedó expresada en el enrutamiento. El proyecto
+ya contaba con una comprobación que permite al personal administrativo actuar
+sobre cualquier profesional y al profesional únicamente sobre sí mismo, que es la
+regla adecuada para los datos que la administración legítimamente gestiona en su
+nombre. Las observaciones exigen una regla más estrecha, en la que ni siquiera el
+rol administrativo queda exento, por lo que se incorporó una segunda comprobación
+que sólo admite al profesional nombrado en la dirección del recurso. Ambas
+comparten todo salvo esa exención, de modo que se extrajo la parte común a una
+clase base y cada una declara únicamente si el rol administrativo la evade; así,
+la comprobación estricta no puede perder ninguna de las cautelas que la otra ya
+tenía —entre ellas la de denegar cuando falta el identificador, que es el modo de
+fallo obligatorio en una comprobación de acceso—. La comparación de identificadores
+que ambas realizan se extrajo también a una función propia, que es hoy el único
+lugar donde el sistema decide si dos identificadores designan al mismo
+profesional.
+
+La escritura se expuso como un subrecurso de la relación, con su propio cuerpo de
+solicitud, y no como un campo más del punto de acceso que edita la prioridad.
+Separarlos es precisamente lo que permite protegerlos de manera distinta: el
+personal administrativo mantiene la prioridad de cualquier relación y queda
+excluido de las observaciones, sin que ningún servicio deba recordar ignorar un
+campo que le fue entregado. La validación por lista blanca ya vigente descarta
+además el campo si se lo intenta introducir por el punto de acceso permitido, lo
+que quedó verificado por una prueba. La lectura, en cambio, no recibió una
+dirección propia: la relación ya se consulta por su dirección natural, y allí se
+resolvió que la observación acompañe la respuesta únicamente cuando quien
+consulta es el profesional de esa relación, mientras que el personal
+administrativo obtiene la misma relación sin el campo. Se evaluó publicar
+también una lectura específica del subrecurso y se descartó, por constituir un
+segundo lugar donde la misma restricción podría implementarse mal.
+
+La traza de auditoría se sujetó a la regla ya vigente en el proyecto, según la
+cual una entrada nombra los campos modificados y nunca sus valores. Aquí esa
+regla deja de ser una convención de higiene para volverse parte de la
+restricción: registrar el contenido escrito trasladaría a la tabla de auditoría
+—consultada con fines de rendición de cuentas— exactamente aquello que la tarea
+mantiene fuera de toda respuesta. La escritura del campo y su entrada de
+auditoría comparten transacción con el resto de las ediciones de la relación,
+para lo cual se factorizó el envoltorio común que ambas operaciones repetían.
+
+Las pruebas se orientaron a demostrar la ausencia del campo tanto como su
+presencia: que el profesional de la relación lo escribe y lo recupera, que otro
+profesional, el personal administrativo y el proceso automatizado reciben un
+rechazo por falta de permisos, y que ninguna de las respuestas generales del
+módulo —el detalle del paciente, su listado, la vinculación con un profesional y
+la edición de la prioridad— contiene el valor almacenado, verificado buscándolo
+en la respuesta serializada completa y no sólo en los campos esperados.
+
