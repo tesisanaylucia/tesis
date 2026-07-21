@@ -761,9 +761,11 @@ El consentimiento de tratamiento de datos, exigido por la Ley 25.326, se modeló
 como una tabla de solo agregado: carece de columna de última modificación, y una
 revocación se registra como una fila nueva en lugar de editar la anterior, de
 modo que el historial de qué se aceptó y cuándo permanece íntegro. La marca
-temporal del consentimiento se mantuvo separada de la de creación de la fila,
-distinción que permite incorporar consentimientos firmados en papel sin falsear
-la fecha del acto.
+temporal del consentimiento se mantuvo en esta instancia separada de la de
+creación de la fila, con el propósito de admitir consentimientos firmados en
+papel sin falsear la fecha del acto; la tarea que implementó el comportamiento
+del consentimiento revisó esa previsión y la revirtió, según se detalla más
+adelante en esta misma subsección.
 
 La tarea salda además una deuda que el propio esquema venía declarando. La traza
 de auditoría reservaba desde su creación una columna para referenciar al
@@ -1046,4 +1048,101 @@ que no hay nada que invertir y un puerto sólo agregaría indirección.
 
 El diagrama de estados del tipo de paciente, con las transiciones que lo
 gobiernan, queda pendiente de incorporación como figura.
+
+La última tarea de la fase incorporó el consentimiento del paciente para el
+tratamiento de sus datos personales, exigido por la Ley 25.326. La entidad ya
+existía desde la primera tarea, de modo que lo aportado aquí es su
+comportamiento: el registro de la aceptación con fecha y hora, la consulta de si
+está otorgada y desde cuándo, y un servicio interno de verificación que la capa
+conversacional consultará antes de tomar una reserva. Los requisitos enuncian la
+regla en una sola frase —el sistema guarda el consentimiento con fecha y hora y
+solo lo solicita si no se registró previamente su aceptación—, de la que se
+desprenden las dos propiedades que la implementación debía garantizar: que quede
+constancia temporal del acto y que no se vuelva a pedir una vez otorgado.
+
+El registro se definió idempotente, con el mismo razonamiento aplicado a la
+vinculación con un profesional: quien más necesita la operación es el asistente
+conversacional en medio de una conversación, que no puede saber si el paciente
+aceptó meses atrás, y volver a preguntárselo es precisamente lo que la regla
+prohíbe. Una segunda invocación devuelve entonces el consentimiento existente sin
+agregar una fila y responde con el código de éxito ordinario, ya que la respuesta
+describe el estado del consentimiento y no afirma haberlo creado. Consultar y
+registrar comparten así una única forma de respuesta.
+
+Impedir la duplicación exigió una decisión sobre concurrencia. Comprobar que no
+existe aceptación previa e insertar a continuación es una lectura seguida de
+escritura, que el nivel de aislamiento predeterminado no protege. La solución
+habitual —una restricción de unicidad que la base rechazara— resultaba
+inaplicable: la tabla es de solo agregado por diseño y debe admitir una segunda
+fila cuando la fase de cumplimiento incorpore la revocación, de modo que la
+restricción impediría aquello para lo cual la tabla fue concebida. Se recurrió
+por tanto al mecanismo ya adoptado en el proyecto para esta clase de invariante,
+ejecutando comprobación e inserción en una única transacción serializable, de
+manera que la invocación perdedora reintente sobre la rama idempotente.
+
+La marca temporal se tomó del reloj del sistema y el punto de acceso no admite
+cuerpo alguno. Aceptar una fecha informada por el cliente equivaldría a admitir
+una afirmación sobre cuándo se prestó el consentimiento sin respaldo, siendo este
+el registro que la clínica exhibiría ante un organismo de control.
+
+Este punto obligó además a revisar una decisión de la primera tarea de la fase.
+La entidad se había modelado con dos marcas temporales, la del acto y la de
+creación de la fila, previendo un consentimiento firmado en papel e incorporado
+con posterioridad conservando su fecha real. Consultada la clínica, se estableció
+que ese caso no existe: todo paciente, tanto los ya registrados como los nuevos,
+presta el consentimiento a través del asistente conversacional. Desaparecido el
+único escenario que las distinguía, ambas columnas sólo podían contener el mismo
+valor, y una segunda copia de un instante es una copia que puede discrepar sin
+que consulta alguna lo advierta, que es el mismo argumento con el que el esquema
+rechaza replicar el identificador de organización. Se eliminó en consecuencia una
+de las dos mediante una migración —sin pérdida de información, puesto que por
+construcción ambas contenían el mismo valor—, junto con el índice que la usaba.
+Se conservó la marca de creación de la fila, que es la que todas las demás
+entidades ya llevan y cuyo valor por defecto proviene del reloj de la base de
+datos; la alternativa de conservar la columna con nombre de dominio propio, por
+su trazabilidad al diagrama entidad-relación, se descartó porque el alta de la
+fila es el momento del consentimiento y un nombre distinto para el mismo instante
+sólo agrega vocabulario, mientras que el término del diagrama se preserva como
+comentario del glosario sobre la columna. El episodio ilustra un
+criterio que el proyecto viene sosteniendo: una columna se conserva mientras
+exista algo que sólo ella pueda expresar, y se elimina apenas ese algo deja de
+existir, aun cuando conservarla parezca inofensivo.
+
+Como la tabla es de solo agregado, el estado del consentimiento no es una
+bandera sino la entrada más reciente, obtenida ordenando por la fecha del acto,
+ordenamiento que el índice existente resuelve. Esa derivación se ubicó en un
+único lugar, del que también lee el servicio de verificación en lugar de
+recalcularla, de modo que la respuesta que ve el cliente y la compuerta que
+consultará el asistente conversacional no puedan discrepar sobre qué significa
+que el consentimiento esté aceptado. Aunque la revocación corresponde a la fase
+de cumplimiento y quedó fuera de alcance, la lógica no supone que la última
+entrada sea siempre una aceptación: si lo último registrado fuese una
+revocación, el estado informado es la ausencia de consentimiento y una nueva
+aceptación se registra como acto nuevo.
+
+El recurso se modeló en singular, con una única dirección y sin entradas
+direccionables individualmente, puesto que lo que un cliente pregunta es siempre
+si el paciente consiente y desde cuándo; exponer el identificador de cada fila
+habría sugerido operaciones de modificación o borrado incompatibles con una
+tabla de solo agregado. Los permisos se repartieron según de quién es el acto:
+registran el personal administrativo y el proceso automatizado, que es donde el
+paciente efectivamente lo presta, y se excluyó al rol profesional, porque el
+consentimiento es acto del paciente y el clínico no tiene nada que declarar en su
+nombre; la consulta, en cambio, queda abierta a todos los roles bajo la
+restricción ya vigente en el módulo, de manera que un profesional alcanza
+únicamente el consentimiento de los pacientes que atiende y para los demás
+obtiene la misma respuesta que para un paciente inexistente.
+
+Al no llevar el consentimiento identificador de organización —por tratarse de
+una entidad con un único padre que ya lo determina—, ninguna fila se alcanza por
+su identificador y toda operación se ancla en el paciente. El camino de lectura
+requería además la restricción por profesional tratante, que la verificación
+existente no aplicaba, de modo que se incorporó una segunda verificación junto a
+la anterior y se extrajo a un método común la consulta y el mensaje de error que
+ambas comparten, dejando como única diferencia entre ellas el filtro de alcance.
+
+El diagrama de secuencia del consentimiento, con la verificación previa, la
+solicitud únicamente ante la ausencia de registro y el comportamiento
+idempotente ante una aceptación ya existente, queda pendiente de incorporación
+como figura.
 

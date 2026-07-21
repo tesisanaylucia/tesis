@@ -78,6 +78,14 @@ cuándo permanece íntegro; la distinción entre el momento del consentimiento
 y el momento del registro permite cargar consentimientos firmados en papel
 sin falsear la fecha del acto.
 
+> Nota posterior (TASK-30): la clínica estableció que no existe consentimiento
+> en papel —todo paciente, ya cargado o nuevo, lo presta por el asistente
+> conversacional—, de modo que ambas marcas temporales sólo podían contener el
+> mismo valor. En esa tarea se eliminó mediante migración la marca con nombre de
+> dominio propio y se conservó la de creación de la fila, que es la convención
+> del resto del esquema; el carácter de solo agregado de la tabla se mantiene sin
+> cambios. Ver `FASE-2_PROMPT-4_BACKEND.md`.
+
 **La referencia del paciente en la traza de auditoría restringe el
 borrado.** Una clave foránea compuesta no admite anular la referencia al
 eliminar la fila referida, porque anularía también el identificador de
