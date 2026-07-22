@@ -1343,3 +1343,35 @@ importación: un registro cargado desde una planilla y uno escrito por una perso
 responden de manera distinta ante una consulta de rendición de cuentas, y la traza
 es donde esa distinción debe sobrevivir.
 
+El cierre del módulo agregó los datos de ejemplo del catálogo de obras sociales y
+verificó la cobertura de pruebas de todo el subdominio, sin cambios de esquema. El
+seed del inquilino del piloto crea las obras sociales de ejemplo, entre ellas la
+provincial, la única que la clínica acepta para las consultas. Se la sembró como un
+nombre genérico de fantasía, como todo otro nombre del seed, ya que la entidad real
+se carga con los datos de la clínica, y se la ubicó primero en la lista por ser la
+que la especificación singulariza; la regla que distingue la consulta de la receta
+—sólo la provincial para las consultas, cualquiera para las recetas y la
+medicación— pertenece al motor de turnos y a la capa conversacional, y queda fuera
+de esta fase. El catálogo se siembra de forma global y no bajo la organización del
+piloto, en coherencia con la conversión de la obra social en catálogo global
+descripta en las fundaciones: el seed la crea una sola vez y el piloto la alcanza a
+través de ese catálogo compartido, apoyándose el alta en el nombre único de la obra
+social de modo que dos corridas sucesivas no la dupliquen. La entidad no se
+modificó: lo que en una primera lectura del diagrama entidad-relación podía tomarse
+por atributos de cobertura de la obra social resultó corresponder a verbos de
+relación del diagrama y no a columnas, de manera que la obra social conserva el
+nombre como único dato propio y el seed la puebla tal como está.
+
+La cobertura de pruebas del módulo se verificó y se completó sin reproducir lo ya
+cubierto. Los siete escenarios que el requisito enumera —el alta, la baja y la
+modificación del paciente y su vínculo con el profesional; los campos que una
+reserva exige; la regla del año que alterna el tipo del paciente entre nuevo y
+recurrente; el consentimiento que no se reitera una vez aceptado; las observaciones
+accesibles sólo al profesional del vínculo; el importador con archivos válidos e
+inválidos; y el aislamiento entre inquilinos— ya quedaban cubiertos de extremo a
+extremo por las tareas previas de esta misma fase, cada una con su prueba.
+Reescribirlos habría duplicado esa cobertura, contra la disciplina de no
+redundancia del proyecto; se verificó su vigencia y se agregó sólo lo que esta
+tarea introduce de nuevo: la prueba del propio seed, que comprueba que la obra
+social provincial se crea y que una segunda ejecución no la duplica.
+
