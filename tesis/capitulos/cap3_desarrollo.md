@@ -1530,3 +1530,51 @@ cuando la operación no cambia ningún campo, porque una traza que afirma cambio
 degrada el valor del registro contra el cual se rinde cuentas en materia de protección de
 datos personales.
 
+### 3.2.3 Motor de Turnos
+
+El módulo de Turnos comenzó, igual que Profesionales y Pacientes antes que él, por
+incorporar al esquema las entidades base del dominio antes de construir servicio o
+lógica alguna sobre ellas: el turno, el feriado y la lista de espera, tomados del
+diagrama entidad-relación y del documento de requisitos, módulo Turnos. El turno
+agrega, además de sus datos propios, un enumerado de cinco estados —reservado,
+confirmado, cancelado, reasignado y completado— y dos claves foráneas compuestas,
+una hacia el paciente y otra hacia el profesional, siguiendo la misma forma que la
+tarea de Pacientes había fijado para el vínculo paciente-profesional: con dos
+padres acotados por organización, el identificador de organización propio del turno
+es lo que obliga a que ambos padres pertenezcan a la misma organización, restricción
+que ningún par de claves foráneas independientes puede expresar por sí solo. La
+lista de espera, que enlaza igualmente un paciente y un profesional, recibió la
+misma forma y el mismo razonamiento.
+
+El feriado ilustra una tensión entre el diagrama y el diseño multi-tenant del
+sistema: el diagrama lo declara con la fecha como clave primaria, pero esa clave
+sólo es única dentro de una organización, ya que dos organizaciones observan
+legítimamente el mismo feriado nacional cada una con su propia fila. Se le dio
+entonces un identificador propio, como al resto de las entidades del esquema, y la
+clave natural del diagrama se expresó como una restricción de unicidad acotada por
+organización en lugar de como clave primaria literal — el mismo tratamiento que ya
+había recibido el documento del paciente.
+
+Dos campos del turno se poblaron deliberadamente por copia al momento de la
+reserva y no por lectura en vivo de su origen: la duración, que puede diferir de la
+configurada en el profesional para una primera sesión y que no debe cambiar si la
+configuración del profesional cambia después de reservado el turno; y el indicador
+de primera sesión, copiado del vínculo paciente-profesional por la misma razón. El
+estado "reasignado" se modeló únicamente como un valor del enumerado, sin relación
+ni lógica que vincule un turno reasignado con el que lo reemplaza, porque el
+documento de requisitos atribuye esa creación al algoritmo de reasignación de una
+fase posterior y no a esta entidad.
+
+La tarea saldó además una deuda declarada desde las Fundaciones: la traza de
+auditoría reservaba, desde su creación, una columna sin clave foránea para
+referenciar al turno, porque la tabla destino no existía todavía. Al quedar creada
+la entidad, la columna se convirtió en clave foránea compuesta real mediante un
+renombrado —no un borrado y recreación— para no perder las referencias ya
+registradas, con la misma restricción sobre el borrado que ya regía la referencia
+al paciente: una entrada de auditoría no puede quedar huérfana, de modo que un
+turno con historial de auditoría no puede eliminarse físicamente. La referencia
+equivalente del registro operativo de la cerradura hacia el turno se dejó sin
+conectar: esa columna está documentada como parte de un par junto con el futuro
+código de acceso, y conectar sólo una de las dos no habilita ningún camino de
+lectura por organización mientras la otra siga sin existir.
+
