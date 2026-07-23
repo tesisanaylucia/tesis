@@ -36,8 +36,8 @@ citas y datos volátiles pendientes de verificación), `en progreso`,
 |---|---|---|---|
 | 3.1 Arquitectura general | sin iniciar | — | — |
 | 3.2.0 Fundaciones | en progreso | FASE-0_PROMPT-6 (revisión del modelo de datos: integridad referencial, normalización y claves foráneas compuestas) | backend |
-| 3.2.1 Profesionales | completo (pendiente de revisión) | FASE-1_PROMPT-6 (TASK-26, seed del plantel del piloto y cierre de la cobertura de pruebas) | backend |
-| 3.2.2 Pacientes | completo (pendiente de revisión) | FASE-2_PROMPT-7 (TASK-33, seed del catálogo de obras sociales y cierre de la cobertura de pruebas) | backend |
+| 3.2.1 Profesionales | completo (pendiente de revisión) | FASE-1_PROMPT-7 (revisión de código y endurecimiento: fecha de confirmación como día calendario, concurrencia de ausencias, cota de la franja extra) | backend |
+| 3.2.2 Pacientes | completo (pendiente de revisión) | FASE-2_PROMPT-8 (revisión de código: verificación de concurrencia del consentimiento y del filtro de acceso del profesional) | backend |
 | 3.2.3 Motor de Turnos | sin iniciar | — | backend |
 | 3.2.4 Notificaciones y Scheduler | sin iniciar | — | backend |
 | 3.2.5 Capa conversacional y WhatsApp | sin iniciar | — | backend |

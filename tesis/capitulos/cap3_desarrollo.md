@@ -700,6 +700,46 @@ la prueba escrita para verificar una corrección terminó revelando un defecto
 distinto y preexistente, lo que refuerza el valor de acompañar cada corrección
 con su verificación automatizada antes que confiar en la inspección del código.
 
+Antes de avanzar hacia los módulos posteriores se sometió el código ya construido
+a una revisión sistemática, contrastándolo desde varios ángulos independientes
+—el modelo de datos, la conformidad funcional con la especificación, y la calidad,
+la seguridad y la concurrencia del código— contra las fuentes de verdad del proyecto
+y contra los tres pilares del modelo de datos. La revisión confirmó que el esquema
+satisface la integridad, la normalización y las relaciones lógicas sin cambios
+estructurales, y produjo un conjunto acotado de correcciones de comportamiento y de
+contrato en el módulo de Profesionales, cada una acompañada de su verificación
+automatizada. La primera unifica el tratamiento de la fecha de confirmación de la
+incorporación del profesional con el del resto de las fechas de calendario del
+sistema: se la había modelado como un instante con marca temporal, lo que reintroduce
+el desplazamiento de un día en la zona horaria de la clínica que la convención de
+fechas del proyecto evita, de modo que se la llevó al tipo fecha sin hora, con la misma
+validación de día existente y la misma conversión canalizada por el único módulo
+autorizado a cruzar esa frontera. La conversión de una fecha de calendario opcional y
+anulable se encapsuló, además, en una función que preserva la distinción entre el valor
+ausente —que no modifica la columna— y el nulo —que la limpia—, una diferencia que la
+expresión ingenua de conversión colapsaría, dejando de ser posible borrar la fecha.
+
+La segunda corrección extiende al alta de ausencias la misma disciplina de concurrencia
+ya adoptada para el reemplazo de la grilla de horarios. La verificación de que una
+ausencia no se solapa con otra ya registrada es un invariante de lectura seguida de
+escritura que corría bajo el nivel de aislamiento por defecto, de modo que dos altas
+concurrentes con rangos solapados podían verificar cada una la ausencia de conflicto
+antes de que la otra confirmara, y ambas persistir; se elevó la operación al nivel de
+aislamiento serializable, con la verificación de solapamiento dentro de la misma
+transacción que la inserción, de manera que la transacción perdedora de la carrera aborta
+y se traduce en una respuesta de conflicto en lugar de una corrupción silenciosa. La
+misma revisión motivó una tercera corrección menor —acotar la franja horaria extra para
+pacientes nuevos a un máximo de dos horas, en correspondencia con los valores que la
+especificación ejemplifica— y una cuarta, transversal al almacén de configuración por
+inquilino, donde la secuencia de buscar y luego crear un parámetro se reemplazó por una
+única operación atómica de alta-o-actualización sobre la restricción de unicidad de la
+clave, eliminando un fallo interno que dos escrituras concurrentes de una misma clave
+nueva podían provocar. Estas correcciones se acompañaron de pruebas de concurrencia que
+someten cada invariante a una carrera real y afirman su estado final consistente —una
+sola grilla, una sola ausencia por período, nunca más de tres matrículas— antes que un
+desenlace temporalmente determinista, dado que cuál transacción gana la carrera depende
+del planificador y no del comportamiento que se prueba.
+
 ### 3.2.2 Pacientes
 
 El segundo módulo de negocio siguió el mismo criterio de apertura que el
@@ -1374,4 +1414,25 @@ Reescribirlos habría duplicado esa cobertura, contra la disciplina de no
 redundancia del proyecto; se verificó su vigencia y se agregó sólo lo que esta
 tarea introduce de nuevo: la prueba del propio seed, que comprueba que la obra
 social provincial se crea y que una segunda ejecución no la duplica.
+
+La revisión sistemática de código que precedió al inicio de los módulos posteriores
+—descrita en la subsección de Profesionales— no halló defectos de comportamiento en
+el módulo de Pacientes, cuyo filtrado por vínculo de tratamiento, restricción de las
+observaciones al profesional del vínculo, auditoría dentro de la transacción e
+idempotencia del consentimiento estaban correctamente implementados. Identificó, en
+cambio, un vacío de verificación: dos invariantes que el código garantiza no contaban
+con una prueba que los ejercitara. El primero es la unicidad del consentimiento bajo
+concurrencia; la regla de que el consentimiento se solicita sólo si no fue registrado
+antes se protege registrándolo en una transacción de aislamiento serializable con una
+rama idempotente, y se agregó una prueba que somete ese invariante a una carrera real
+—dos registros simultáneos del mismo paciente— y afirma que deja exactamente una fila y
+una única entrada de auditoría, cualquiera sea el entrelazado que el planificador
+imponga. El segundo es la rama de denegación del filtro de acceso del profesional: una
+cuenta con rol de profesional que carece de profesional asociado es una cuenta rota que
+debe rechazarse antes de consultar la base de datos, en lugar de degradar a un acceso
+sin restricción, y como esa cuenta no puede construirse a través de la interfaz pública
+—el inicio de sesión no la emite—, se la verificó con una prueba unitaria que ejercita
+las dos ramas del filtro y, en particular, esa denegación previa a toda consulta. Ambas
+adiciones son exclusivamente de verificación: no modifican el comportamiento del módulo,
+sino que fijan por prueba una garantía que hasta entonces sólo el código sostenía.
 
