@@ -35,9 +35,9 @@ citas y datos volátiles pendientes de verificación), `en progreso`,
 | Subsección | Estado | Último prompt | Componente |
 |---|---|---|---|
 | 3.1 Arquitectura general | sin iniciar | — | — |
-| 3.2.0 Fundaciones | en progreso | FASE-0_PROMPT-6 (revisión del modelo de datos: integridad referencial, normalización y claves foráneas compuestas) | backend |
-| 3.2.1 Profesionales | completo (pendiente de revisión) | FASE-1_PROMPT-7 (revisión de código y endurecimiento: fecha de confirmación como día calendario, concurrencia de ausencias, cota de la franja extra) | backend |
-| 3.2.2 Pacientes | completo (pendiente de revisión) | FASE-2_PROMPT-8 (revisión de código: verificación de concurrencia del consentimiento y del filtro de acceso del profesional) | backend |
+| 3.2.0 Fundaciones | en progreso | FASE-2_PROMPT-10 (refinamiento del modelo de datos: baja lógica como marca temporal común a profesionales y pacientes, documentación de la redundancia deliberada del puntero de auditoría) | backend |
+| 3.2.1 Profesionales | completo (pendiente de revisión) | FASE-2_PROMPT-10 (retiro de la fecha de confirmación sin uso; baja lógica como marca temporal) | backend |
+| 3.2.2 Pacientes | completo (pendiente de revisión) | FASE-2_PROMPT-10 (baja lógica como marca temporal anulable) | backend |
 | 3.2.3 Motor de Turnos | sin iniciar | — | backend |
 | 3.2.4 Notificaciones y Scheduler | sin iniciar | — | backend |
 | 3.2.5 Capa conversacional y WhatsApp | sin iniciar | — | backend |

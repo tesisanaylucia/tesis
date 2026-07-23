@@ -216,6 +216,54 @@ incorporó además a la respuesta del profesional, por la misma razón que ya
 llevó a incluir la grilla de horarios: evitar que la capa conversacional, al
 filtrar profesionales por obra social, deba resolver una consulta N+1.
 
+Una segunda revisión sistemática de código, realizada al cerrar la
+implementación de los módulos de Profesionales y Pacientes, reforzó las
+fundaciones en cuatro puntos. El más relevante afecta a la extensión que aplica
+el filtrado por organización a cada consulta: no contemplaba dos operaciones que
+la biblioteca de acceso a datos ofrece —la actualización y la creación múltiples
+con retorno de filas—, y la primera no falla de forma segura ante la ausencia de
+filtro, de modo que una consulta de ese tipo habría podido leer y modificar filas
+de todas las organizaciones. Como la extensión es la barrera única sobre la que
+descansa la garantía de aislamiento, la corrección se aplicó allí y no en cada
+consumidor, cubriendo además el caso de una consulta sin argumentos que provocaba
+un error en tiempo de ejecución en vez de devolver el resultado ya filtrado. En
+el inicio de sesión se cerró un canal lateral de tiempo que permitía distinguir un
+correo registrado de uno inexistente por la latencia de la respuesta, igualando el
+trabajo de ambos caminos aun cuando el mensaje de error ya era idéntico. Se
+rediseñó el contrato del puerto que abstrae la cerradura electrónica: identificaba
+cada código por el valor del PIN y no permitía indicar sobre qué cerradura operar,
+por lo que no habría permitido invalidar el código anterior al reprogramar o
+cancelar un turno —lo que la especificación del control de acceso exige—; el
+contrato revisado devuelve un identificador opaco junto con el PIN y recibe el
+identificador de la cerradura en cada operación, corregido mientras el único
+implementador es todavía el adaptador de prueba y antes de construir la
+integración real. Por último, se conciliaron la convención de nomenclatura del
+repositorio y el código: los métodos de los puertos de integración se nombran en
+inglés, como el resto de los identificadores, y el término del glosario en español
+se conserva en un comentario sobre cada puerto.
+
+Un repaso posterior de tres campos del esquema, motivado por preguntas sobre su
+sentido, consolidó dos convenciones transversales del modelo de datos. La primera
+atañe a la tabla de auditoría: identifica el registro afectado por cada acción con
+un puntero genérico —el nombre del tipo de entidad como texto y el identificador de
+la fila—, porque una sola tabla registra acciones sobre entidades de tipos distintos
+y no puede sostener una clave foránea real hacia cada una; además de ese puntero,
+cuando la acción concierne a un paciente se guarda también una clave foránea real
+hacia el paciente. Esa duplicación es deliberada y quedó documentada como tal: el
+puntero genérico obligaría a la consulta central de cumplimiento —reconstruir todo lo
+actuado sobre un paciente, exigido por la protección de datos personales— a
+interpretar cadenas de texto a través de todos los tipos de entidad, mientras que la
+clave foránea real la resuelve como una unión indexada que la base valida y acota a la
+misma organización. La segunda convención unifica la forma de la baja lógica: en
+lugar de un indicador booleano de actividad, profesionales y pacientes llevan una
+marca temporal anulable cuya ausencia significa activo y cuyo valor registra el
+instante de la baja, de modo que la traza conserva no sólo que un registro fue dado de
+baja sino cuándo, y la reactivación se expresa como el borrado de esa marca; se
+descartó el par booleano-más-fecha por requerir una coherencia entre dos columnas que
+una sola marca temporal vuelve imposible de violar. La migración correspondiente
+preserva el estado previo, convirtiendo cada fila inactiva en una marca temporal para
+no perder ninguna baja registrada.
+
 ### 3.2.1 Profesionales
 
 El primer módulo de negocio construido sobre las fundaciones fue el de
@@ -739,6 +787,33 @@ someten cada invariante a una carrera real y afirman su estado final consistente
 sola grilla, una sola ausencia por período, nunca más de tres matrículas— antes que un
 desenlace temporalmente determinista, dado que cuál transacción gana la carrera depende
 del planificador y no del comportamiento que se prueba.
+
+Una revisión posterior, ya al cierre de la etapa, completó la configuración de agenda
+del profesional con un dato que hasta entonces faltaba y reconsideró la cota fijada más
+arriba. La especificación distingue dos parámetros que la configuración inicial colapsaba
+en uno solo: la cadencia con que se abren los turnos en la agenda —cada cuánto tiempo hay
+un horario ofrecible— y la duración de la sesión, que es la información que el asistente
+comunica al paciente al confirmar el turno. Colapsarlos impedía expresar el propio ejemplo
+de la fuente de verdad —atención cada una hora con sesiones de cuarenta y cinco minutos—,
+por lo que se agregó la cadencia como un dato propio de cada profesional, distinto de la
+duración, nulo hasta que se configura y destinado a alimentar la futura generación de
+agenda. En cuanto a la franja horaria extra para pacientes nuevos, la cota de dos horas
+introducida por la revisión anterior se revisó a la baja de exigencia: la especificación
+enumera esos valores a modo de ejemplo y deja la magnitud abierta, de modo que el límite
+dejó de interpretarse como una regla de negocio y pasó a ser una cota amplia de contención.
+La misma revisión unificó una definición duplicada de la representación de una obra social,
+que existía por partida doble en la capa de presentación de Profesionales y en la de Obras
+Sociales, importándola desde su lugar canónico para que ambas vistas no puedan divergir.
+
+Un ajuste posterior retiró por completo la fecha de confirmación de la incorporación del
+profesional, cuyo tratamiento como día de calendario se describió más arriba. El campo se
+almacenaba y se devolvía en la respuesta, pero ninguna regla de negocio llegó a consumirlo,
+de modo que se lo eliminó del esquema, de los objetos de transferencia y de la respuesta,
+por no aportar función alguna en el estado actual del sistema; la disciplina de fechas de
+calendario que aquel tratamiento ilustra sigue vigente para el resto de las fechas del
+dominio —ausencias, fecha de nacimiento del paciente—, sólo que ya no se aplica a un campo
+que dejó de existir. La representación de la baja lógica del profesional, por su parte, pasó
+a la marca temporal anulable descripta en 3.2.0, común a profesionales y pacientes.
 
 ### 3.2.2 Pacientes
 
@@ -1435,4 +1510,23 @@ sin restricción, y como esa cuenta no puede construirse a través de la interfa
 las dos ramas del filtro y, en particular, esa denegación previa a toda consulta. Ambas
 adiciones son exclusivamente de verificación: no modifican el comportamiento del módulo,
 sino que fijan por prueba una garantía que hasta entonces sólo el código sostenía.
+
+Una revisión más amplia, que confrontó el conjunto de lo implementado con las dos fuentes
+de verdad del proyecto, introdujo dos correcciones de comportamiento en este módulo. La
+primera atañe al estado de actividad del paciente: era un campo editable del punto de
+modificación general, alcanzable por el rol administrativo y por el proceso automático, de
+modo que este último podía dar de baja a un paciente deslizando el atributo dentro de una
+modificación ordinaria, y la baja quedaba registrada como una modificación genérica de
+campos en lugar de la baja que era. Se retiró el atributo de ese punto de acceso y se
+separaron el alta y la baja en puntos propios, ambos restringidos al rol administrativo,
+convirtiendo la restricción en un hecho de enrutamiento —qué rol alcanza cada punto— en vez
+de una comprobación dispersa que hay que recordar mantener, y logrando que cada operación se
+audite con la semántica que le corresponde. La segunda corrige la precisión de la traza de
+auditoría ante operaciones sin efecto: el registro de una consulta atendida nombraba siempre
+los mismos tres campos como modificados aun cuando la fecha de última consulta no avanzaba, y
+una modificación de cuerpo vacío dejaba una entrada de una operación que no cambiaba nada. Se
+optó por derivar los campos efectivamente modificados y por omitir la escritura y su entrada
+cuando la operación no cambia ningún campo, porque una traza que afirma cambios inexistentes
+degrada el valor del registro contra el cual se rinde cuentas en materia de protección de
+datos personales.
 
