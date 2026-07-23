@@ -1578,3 +1578,36 @@ conectar: esa columna está documentada como parte de un par junto con el futuro
 código de acceso, y conectar sólo una de las dos no habilita ningún camino de
 lectura por organización mientras la otra siga sin existir.
 
+Sobre esa base de entidades se construyó el servicio de disponibilidad, que
+calcula las franjas libres de la agenda de un profesional entre dos fechas
+siguiendo el procedimiento del documento de requisitos: toma el horario de
+atención del profesional para los días de la semana del rango, genera
+franjas desde el inicio hasta el fin de cada bloque con paso igual a la
+duración de consulta configurada, y descarta las que caen en un feriado del
+inquilino, en una ausencia del profesional o en un turno ya reservado o
+confirmado. El paso de generación es deliberadamente la duración de la
+consulta y no la cadencia de apertura de franjas —una configuración distinta
+del profesional, pensada para un espaciado posterior de franjas— porque así
+lo especifica el documento de requisitos para este cálculo puntual. La
+ausencia de una duración de consulta configurada se trata como un pedido mal
+formado y no como una lista vacía, para distinguir "no hay franjas hoy" de
+"falta configurar la agenda del profesional", dato que el cliente necesita
+para actuar. El cálculo hereda además la misma simplificación de huso
+horario que ya rige los horarios de atención y las ausencias del sistema:
+combina el día calendario y la hora de reloj de pared del bloque como si
+ambos fueran directamente UTC, en lugar de introducir aquí, de forma
+aislada, una conversión de huso horario real que ningún otro componente
+todavía tiene.
+
+A diferencia del horario de atención y las ausencias, que viven anidados en
+el módulo de Profesionales aunque su ruta cuelga del mismo prefijo, el
+servicio de disponibilidad se organizó en un módulo propio: lee además el
+feriado y el turno, entidades de otro subdominio, y está pensado para ser
+inyectado más adelante tanto por el algoritmo de reasignación (M3/M4) como
+por la capa conversacional del chatbot (M5), que ofrecerá al paciente las
+mismas franjas que calcula este servicio. Deliberadamente no incorpora
+todavía la regla de doble franja para paciente nuevo: el documento de
+requisitos la asigna a una tarea posterior de la misma fase, que consumirá
+este servicio y aplicará esa restricción por encima de las franjas
+calculadas aquí.
+
