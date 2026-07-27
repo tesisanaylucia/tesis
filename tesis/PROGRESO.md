@@ -38,7 +38,7 @@ citas y datos volátiles pendientes de verificación), `en progreso`,
 | 3.2.0 Fundaciones | en progreso | FASE-2_PROMPT-10 (refinamiento del modelo de datos: baja lógica como marca temporal común a profesionales y pacientes, documentación de la redundancia deliberada del puntero de auditoría) | backend |
 | 3.2.1 Profesionales | completo (pendiente de revisión) | FASE-2_PROMPT-10 (retiro de la fecha de confirmación sin uso; baja lógica como marca temporal) | backend |
 | 3.2.2 Pacientes | completo (pendiente de revisión) | FASE-2_PROMPT-10 (baja lógica como marca temporal anulable) | backend |
-| 3.2.3 Motor de Turnos | en progreso | FASE-3_PROMPT-2 (servicio de disponibilidad: generación de franjas a partir del horario, feriados, ausencias y turnos ocupados) | backend |
+| 3.2.3 Motor de Turnos | en progreso | FASE-3_PROMPT-3 (reserva de turno: consentimiento, datos obligatorios, slot libre y no simultaneidad, con creación transaccional y auditoría) | backend |
 | 3.2.4 Notificaciones y Scheduler | sin iniciar | — | backend |
 | 3.2.5 Capa conversacional y WhatsApp | sin iniciar | — | backend |
 | 3.2.6 Cerradura TTLock | sin iniciar | — | backend |

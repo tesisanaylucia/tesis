@@ -1611,3 +1611,38 @@ requisitos la asigna a una tarea posterior de la misma fase, que consumirá
 este servicio y aplicará esa restricción por encima de las franjas
 calculadas aquí.
 
+Sobre el servicio de disponibilidad se construyó la reserva de turno, que
+aplica en orden las cuatro validaciones previas que fija el documento de
+requisitos antes de crear el turno: que el paciente tenga consentimiento
+registrado, que tenga cargados los datos obligatorios para una reserva
+(fecha de nacimiento y contacto de emergencia — el documento nacional de
+identidad no se verifica aparte porque la columna que lo guarda ya es no
+anulable), que el slot esté libre, y que el paciente no tenga ya otro turno
+reservado o confirmado en el mismo instante con otro profesional. La
+verificación del slot libre no reimplementa el criterio de "ocupado": se
+agregó como un método nuevo del propio servicio de disponibilidad, para que
+el cálculo de franjas y la reserva no puedan llegar a discrepar sobre qué
+cuenta como un turno que ya ocupa un horario. Las dos últimas validaciones
+—slot libre y no simultaneidad del paciente— son invariantes de
+lectura-y-escritura, de modo que se ejecutan dentro de una transacción
+serializable junto con la creación del turno, siguiendo la misma técnica
+que ya usa el repositorio para el tope de matrículas y el reemplazo del
+horario semanal; el consentimiento y los datos obligatorios, al no competir
+con ninguna escritura concurrente, se verifican antes de abrir esa
+transacción.
+
+El turno creado hereda el mismo patrón de copia al momento de la reserva
+que ya había fijado el modelado de la entidad: la duración se toma de la
+configuración del profesional en ese instante, y el indicador de primera
+sesión se copia del vínculo entre el paciente y el profesional. Cuando ese
+vínculo todavía no existe, la reserva lo crea en el momento en lugar de
+exigir un paso de vinculación previo: la primera reserva de un paciente con
+un profesional es, por definición, su primera sesión con él, de modo que la
+ausencia del vínculo es en sí misma la respuesta a la pregunta que el
+sistema debe validar, y no un caso de error. Cierra la operación una entrada
+en la traza de auditoría, con un motivo de texto libre propio de la reserva
+en lugar de los motivos genéricos de alta, modificación y baja que usa el
+resto del sistema — el mismo mecanismo que ya usan el consentimiento y el
+vínculo paciente-profesional para sus propios eventos de cumplimiento
+normativo.
+
