@@ -1646,3 +1646,51 @@ resto del sistema — el mismo mecanismo que ya usan el consentimiento y el
 vínculo paciente-profesional para sus propios eventos de cumplimiento
 normativo.
 
+La fase se cerró con la regla de primera sesión que el servicio de
+disponibilidad había dejado pendiente: cuando la reserva es la primera
+sesión de un paciente con un profesional, se aplican cuatro controles
+adicionales antes de crear el turno. Dos son interruptores de
+configuración del profesional que ya existían en el esquema desde
+Profesionales sin uso hasta este punto — si el profesional dejó de aceptar
+pacientes nuevos, o si solo atiende adultos, en cuyo caso la edad se
+deriva de la fecha de nacimiento con la misma función que ya usa el resto
+del sistema para ese cálculo — y se verifican como precondiciones
+ordinarias, de la misma manera que el consentimiento y los datos
+obligatorios de la reserva. Un tercero limita a un paciente nuevo por
+jornada por profesional, y por ser una invariante sobre el estado de la
+agenda se revalida dentro de la misma transacción serializable que ya
+protegía el slot libre y la no simultaneidad, con el mismo razonamiento:
+dos reservas concurrentes de dos pacientes nuevos distintos podrían, sin
+esa revalidación, leer ambas "todavía no hay ninguno" y escribir ambas.
+
+El cuarto control es la franja extra que el profesional puede configurar
+en tres modalidades — que el doble turno de la primera sesión solo pueda
+empezar en el primer turno libre de la jornada, que solo pueda terminar en
+el último, o que pueda ubicarse en cualquier posición con dos turnos
+consecutivos libres — y que, cuando está configurada, hace que la primera
+sesión reserve dos turnos consecutivos en lugar de uno, cada uno con la
+duración de consulta del profesional. El cálculo de qué instantes son un
+inicio válido de doble turno se agregó como una capa sobre el cálculo de
+franjas existente, no como una modificación de su algoritmo: la agenda que
+ve un paciente que ya está en tratamiento debía seguir siendo exactamente
+la misma. Los dos primeros modos exigieron distinguir el primer o el
+último turno *real* de la jornada, según la grilla de horario configurada,
+del primero o el último turno que *todavía* está libre — un profesional
+cuyo primer turno del día ya fue tomado por otro paciente no ofrece esa
+modalidad corriéndose al segundo turno disponible, sino que directamente
+no la ofrece ese día, porque la regla existe justamente para reservarle a
+la primera sesión el comienzo de la jornada. Cuando el profesional
+todavía no configuró la franja extra, la primera sesión se reserva como
+un turno único, sin restricción de colocación: no se convirtió en un
+requisito bloqueante como sí lo es la duración de consulta, porque impedir
+la atención de pacientes nuevos hasta que se configure una modalidad de
+franja habría sido una exigencia que el documento de requisitos no
+plantea, y porque así ya se venía comportando el sistema antes de esta
+regla. El mismo cálculo que decide qué instantes son un inicio válido de
+doble turno se expone también por consulta directa, para que el turno que
+se le ofrece al paciente y el que finalmente reserva no puedan discrepar;
+y como una primera sesión bajo una franja configurada crea dos turnos en
+lugar de uno, la respuesta de la reserva pasó a tener siempre la forma de
+una lista, con un único elemento en el caso ordinario, en lugar de cambiar
+de forma según el caso.
+
