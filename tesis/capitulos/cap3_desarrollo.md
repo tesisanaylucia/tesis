@@ -1694,3 +1694,127 @@ lugar de uno, la respuesta de la reserva pasó a tener siempre la forma de
 una lista, con un único elemento en el caso ordinario, en lugar de cambiar
 de forma según el caso.
 
+La fase continuó con la máquina de estados del turno: reservado a
+confirmado, reservado a cancelado, confirmado a completado, confirmado a
+cancelado, y cancelado a reasignado, tal como los enumera el documento de
+requisitos. La tabla de transiciones válidas se extrajo a una función
+pura, separada del servicio y sin dependencias de infraestructura, con el
+mismo criterio que ya había fijado la regla de inactividad de pacientes —
+una tabla de datos fácil de agotar por completo con una prueba unitaria
+por cada par de estados posible, en lugar de una cadena de condicionales
+dispersa en el servicio. La transición de cancelado a reasignado quedó
+declarada válida en esa tabla, pero ningún método del servicio la ejecuta
+todavía: el documento de requisitos atribuye esa escritura al algoritmo de
+reasignación de una fase posterior, que decide a qué paciente de la lista
+de espera se reasigna el turno liberado, una decisión que esta tarea no
+tiene información para tomar.
+
+Sobre la tabla de transiciones se construyeron tres operaciones. La
+confirmación registra la fecha de confirmación y quedó reservada a los
+mismos roles que la propia reserva —administrador o el proceso
+automatizado del chatbot—, porque el documento de requisitos describe la
+confirmación como una acción que el paciente realiza por WhatsApp, no algo
+que un profesional haga en su nombre. La cancelación admite tanto un turno
+reservado como uno confirmado, sujeta a una anticipación mínima respecto
+de la fecha y hora del turno: si el pedido llega con menos anticipación
+que la configurada, se rechaza con un mensaje que indica que el paciente
+debe contactar directamente a la clínica. Esa anticipación mínima se
+modeló como configuración por organización y no como una constante del
+código, con el mismo valor por defecto de cuatro horas que fija el
+documento de requisitos, siguiendo exactamente el patrón que ya había
+usado el umbral de inactividad de pacientes: una fila sembrada tanto en
+una migración, para que una organización ya existente la reciba sin
+depender del seed de desarrollo, como en el seed mismo, con el servicio
+cayendo al mismo valor por defecto si la fila todavía no existe. El
+completado de un turno confirmado, por último, actualiza dentro de la
+misma transacción el vínculo entre el paciente y el profesional a través
+del método que la tarea de tipo de paciente ya había dejado preparado
+para este momento: el tipo pasa a recurrente, el indicador de primera
+sesión se apaga, y la fecha de última consulta avanza si corresponde. Las
+tres operaciones protegen la transición con una escritura condicionada al
+estado de origen, en lugar de una transacción serializable completa: dos
+transiciones concurrentes sobre el mismo turno hacen que la segunda no
+encuentre ninguna fila que igualar y se traduzca en un conflicto, el mismo
+mecanismo que ya usa el vínculo paciente-profesional para no retroceder la
+fecha de última consulta ante dos completados simultáneos.
+
+La autorización de "administrador o el profesional dueño del turno", que
+exige tanto la confirmación como la cancelación, el completado y los dos
+registros administrativos descritos a continuación, se resolvió en el
+servicio y no con el guard de propiedad ya existente en Profesionales: ese
+guard lee el identificador del profesional directamente de un parámetro de
+la URL, y en estas rutas el parámetro nombra al turno, no al profesional,
+de modo que la propiedad solo puede conocerse después de leer la fila. Se
+aplicó la misma comparación que ya usa el vínculo paciente-profesional
+para el mismo problema, dejando la verificación de organización —que sigue
+resolviendo el filtrado automático por inquilino— como lo que en verdad
+contiene el pedido.
+
+La fase continuó, tras la máquina de estados, con dos registros
+administrativos del turno sin restricción de estado —si se cobró la
+consulta y si el paciente trajo la orden médica que exige la obra
+social—, y con el método que expone, sin combinarlos, el tipo del vínculo
+(nuevo o recurrente) y la prioridad que el profesional le asignó al
+paciente: los dos datos que el algoritmo de reasignación de una fase
+posterior necesitará leer para decidir, ante un turno liberado, a qué
+paciente de la lista de espera ofrecérselo primero.
+
+La fase cerró, por ahora, con los tres flujos de reprogramación que
+completan el ciclo de vida administrativo del turno: la reprogramación
+individual por su propio identificador, la reorganización manual de
+varios turnos de una misma agenda en un solo pedido, y la cancelación
+automática de los turnos afectados cuando se registra una ausencia del
+profesional. Las dos primeras comparten la misma operación interna —slot
+destino libre según el mismo servicio de disponibilidad que ya usa la
+reserva, fecha futura, y, cuando el turno es una primera sesión,
+revalidación de la aceptación de pacientes nuevos y de la restricción de
+solo adultos— dentro de una transacción serializable con su propia entrada
+de auditoría, siguiendo la misma técnica que ya fija la reserva para las
+invariantes de lectura y escritura. No se revalida en cambio la
+colocación de la franja extra de primera sesión: el documento de
+requisitos describe la reprogramación como el movimiento de un turno por
+su propio identificador, no como una nueva ubicación del par de turnos que
+lo acompañó en la reserva original. La reorganización manual, además, no
+se ejecuta como una única transacción de base de datos sobre todo el
+lote: el documento de requisitos exige que un movimiento fallido se
+informe sin abortar los que sí pudieron aplicarse, lo que exige que cada
+uno persista con independencia del resultado de los demás.
+
+La cancelación masiva por ausencia le dio, a su vez, su primer consumidor
+real al punto de extensión que la gestión de ausencias había dejado
+preparado desde la fase de Profesionales: el servicio de turnos implementa
+`AbsenceEventsPort` en un adaptador propio que, ante el evento de ausencia
+registrada, cancela todo turno reservado o confirmado del profesional
+dentro del período informado, lo marca con un nuevo motivo de cancelación
+específico para distinguirlo de una cancelación ordinaria, y publica un
+segundo punto de extensión, `ReassignmentPort`, una vez por cada turno que
+efectivamente cancela — un puerto enfocado y separado del de ausencias,
+para no mezclar bajo un mismo contrato el registro de una ausencia con la
+liberación puntual de un turno, y con el mismo adaptador *stub* que ya usa
+el resto de los puertos de integración, a la espera del algoritmo de
+reasignación de una fase posterior. Esa cancelación masiva se ejecuta de
+forma sincrónica dentro del mismo pedido HTTP que registra la ausencia, y
+por eso mismo no queda sujeta a la anticipación mínima que sí exige la
+cancelación ordinaria — no es una decisión discrecional sujeta a un plazo
+de aviso, sino la consecuencia obligada de que el profesional dejó de
+estar disponible —, y cada turno del período se cancela en su propia
+transacción, con su propio registro de error si algo falla, para que un
+conflicto de concurrencia sobre un turno cualquiera no convierta en una
+respuesta de error el registro de una ausencia que ya se persistió y
+auditó correctamente, ni deje sin cancelar el resto del período.
+
+Darle al puerto de eventos de ausencia su primer consumidor real expuso
+además una restricción de composición que las fases anteriores no habían
+enfrentado: el servicio de ausencias, alojado hasta entonces dentro del
+módulo de Profesionales, pasó a depender del módulo de Turnos para
+resolver ese puerto, mientras que el módulo de Turnos ya dependía del de
+Profesionales para verificar la pertenencia de cada turno — proveer el
+puerto directamente dentro de Profesionales habría cerrado un ciclo de
+importación entre ambos. La solución fue extraer el servicio y el
+controlador de ausencias a un módulo propio, ubicado por encima de los
+otros dos, que importa a cada uno para lo que necesita sin que ninguno
+necesite importarlo de vuelta — la misma clase de reorganización que ya
+había exigido, en Fundaciones, la revisión de integridad y normalización
+del esquema, aplicada esta vez al grafo de módulos de Nest en lugar de al
+modelo de datos.
+
