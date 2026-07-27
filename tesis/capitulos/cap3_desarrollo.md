@@ -1818,3 +1818,76 @@ había exigido, en Fundaciones, la revisión de integridad y normalización
 del esquema, aplicada esta vez al grafo de módulos de Nest en lugar de al
 modelo de datos.
 
+La fase continuó con el algoritmo de reasignación que el punto de
+extensión `ReassignmentPort` había dejado preparado sin consumidor real:
+qué hacer con un turno que acaba de quedar liberado por una cancelación.
+Según la modalidad de reasignación que el profesional tiene configurada
+—un interruptor que ya existía en el esquema desde la fase de
+Profesionales, sin uso hasta este punto—, el turno liberado se ofrece por
+orden de prioridad a la lista de espera del profesional, o simplemente
+queda disponible sin que se contacte a nadie. El recorrido de la lista de
+espera en modalidad automática ordena a los candidatos por la prioridad
+que el profesional les asignó individualmente —el mismo campo que la fase
+de estados y prioridad había dejado expuesto sin consumidor—, luego por el
+orden de llegada a la lista y luego por la fecha de solicitud; un
+candidato que todavía no tiene vínculo registrado con el profesional se
+trata como de prioridad nula en lugar de interrumpir el recorrido completo.
+Para cada candidato se envía una oferta a través del puerto de mensajería
+ya existente y se espera una respuesta de aceptación: si acepta, el turno
+original pasa al estado "reasignado" —la transición que la máquina de
+estados de la fase anterior ya había declarado válida sin que ningún
+método la ejecutara—, se crea un turno nuevo para ese paciente en el mismo
+horario y con la misma duración, y el paciente se retira de la lista de
+espera; si rechaza, se continúa con el siguiente candidato; si la lista se
+agota sin que nadie acepte, o si está vacía, el turno simplemente queda
+liberado, sin error.
+
+Como todavía no existe un canal real de contacto por WhatsApp ni el
+temporizador de espera que el documento de requisitos atribuye a fases
+posteriores, la aceptación del paciente se resolvió detrás de un puerto de
+dominio nuevo y separado del de mensajería, cuyo adaptador *stub* responde
+siempre que nadie aceptó —una respuesta negativa por defecto, para que
+ninguna reserva ocurra a partir de una aceptación que nadie emitió
+realmente mientras ese canal no exista—, en lugar de mezclar esa pregunta
+dentro de un puerto de mensajería cuyos métodos son de una sola vía. El
+gancho de reasignación, que la fase anterior solo disparaba desde la
+cancelación masiva por ausencia, se conectó también a la cancelación
+ordinaria de un turno: el documento de requisitos describe el servicio de
+reasignación como algo que se invoca en general cuando un turno pasa a
+cancelado, sin acotarlo a una única vía de llegar a ese estado, y dejarlo
+conectado solo a la cancelación por ausencia habría dejado sin cubrir el
+caso más frecuente, la cancelación voluntaria del paciente o del
+profesional.
+
+El nuevo módulo que implementa el algoritmo se organizó de manera que no
+dependiera del módulo de Turnos, pese a proveer la implementación real de
+un puerto que ese módulo consume: de haber necesitado el servicio de
+turnos para crear el turno de reemplazo y transicionar el original, se
+habría cerrado un ciclo de importación, ya que el módulo de Turnos
+necesita a su vez importar el nuevo módulo para obtener esa implementación
+real. El algoritmo opera en cambio directamente sobre la tabla de turnos a
+través del cliente de Prisma acotado por inquilino — la misma clase de
+restricción de composición que ya había resuelto, en la fase anterior, la
+extracción del módulo de ausencias, aplicada esta vez en la dirección
+opuesta. Por la misma razón por la que no existe un usuario de sistema
+sembrado en el sistema, las entradas de auditoría que una reasignación
+automática genera se atribuyen al mismo actor humano que canceló el turno
+que la disparó, dato que ambas vías de cancelación ya tenían disponible en
+el momento en que publican el evento.
+
+La fase cerró, por ahora, con la gestión de la lista de espera que el
+algoritmo anterior consume: alta de un paciente con su obra social
+opcional y con la posición siguiente asignada automáticamente, listado
+ordenado, reordenamiento manual por el profesional —reemplazo completo del
+orden a partir de la secuencia de identificadores que este envía, con la
+misma técnica de reemplazo idempotente que ya usa la grilla de horario
+semanal— y baja, con la misma restricción de "administrador o profesional
+dueño" que ya rige el resto de los recursos acotados a un profesional. El
+criterio de anteponer un paciente recurrente a uno nuevo, que el documento
+de requisitos deja a criterio del profesional, se resolvió enteramente a
+través del campo de prioridad numérica ya existente, sin agregar un
+interruptor de configuración adicional: un profesional que quiere
+anteponer a sus pacientes recurrentes lo expresa subiéndoles la prioridad
+individualmente, el mismo mecanismo que ya usa para cualquier otro
+paciente al que quiere anteponer.
+
