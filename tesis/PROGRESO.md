@@ -38,7 +38,7 @@ citas y datos volátiles pendientes de verificación), `en progreso`,
 | 3.2.0 Fundaciones | en progreso | FASE-2_PROMPT-10 (refinamiento del modelo de datos: baja lógica como marca temporal común a profesionales y pacientes, documentación de la redundancia deliberada del puntero de auditoría) | backend |
 | 3.2.1 Profesionales | completo (pendiente de revisión) | FASE-2_PROMPT-10 (retiro de la fecha de confirmación sin uso; baja lógica como marca temporal) | backend |
 | 3.2.2 Pacientes | completo (pendiente de revisión) | FASE-2_PROMPT-10 (baja lógica como marca temporal anulable) | backend |
-| 3.2.3 Motor de Turnos | en progreso | FASE-3_PROMPT-8 (suite de tests integrales de extremo a extremo del motor de turnos completo: ciclo disponibilidad→reserva→confirmación→cancelación→reasignación→completado, tres modalidades de franja extra juntas, escenario multi-tenant). Pendiente en el módulo: TASK-78 (CRUD de feriados) | backend |
+| 3.2.3 Motor de Turnos | en progreso | FASE-3_PROMPT-9 (administración del calendario de feriados por inquilino: alta, baja, edición y listado por año, restringidos al rol administrador) | backend |
 | 3.2.4 Notificaciones y Scheduler | sin iniciar | — | backend |
 | 3.2.5 Capa conversacional y WhatsApp | sin iniciar | — | backend |
 | 3.2.6 Cerradura TTLock | sin iniciar | — | backend |

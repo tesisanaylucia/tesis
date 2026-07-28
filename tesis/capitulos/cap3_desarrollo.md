@@ -1922,3 +1922,22 @@ preexistente del entorno de pruebas que esta tarea deja señalada como
 pendiente de una fase de endurecimiento posterior, en lugar de resolverla
 aquí.
 
+El feriado, cuya entidad y consumo por el algoritmo de disponibilidad ya
+había resuelto esta fase, todavía carecía de una vía para que un
+administrador gestionara su propio calendario sin intervenir la base de
+datos directamente: una tarea posterior cerró ese faltante con cuatro
+endpoints de administración —alta, baja, edición de la descripción y
+listado por año— restringidos al rol administrador y resueltos, como el
+resto del sistema, mediante el acotamiento automático por inquilino del
+cliente de Prisma; un feriado de otra organización resulta así
+tan inexistente para estas operaciones como uno que nunca se creó, con
+la misma respuesta de "no encontrado" que ya recibe cualquier otro
+recurso ajeno al inquilino, en lugar del código de "prohibido" que
+describe literalmente el documento de requisitos. La eliminación de un
+feriado no bloquea su ejecución ante la presencia de turnos ya
+reservados o confirmados en esa fecha —ningún turno existente deja de
+ser válido porque la fecha deje de estar marcada como feriado—, pero
+informa en la propia respuesta cuántos turnos coexisten con la fecha
+recién liberada, a modo de advertencia para una eventual acción manual
+del administrador.
+
