@@ -1875,7 +1875,7 @@ automática genera se atribuyen al mismo actor humano que canceló el turno
 que la disparó, dato que ambas vías de cancelación ya tenían disponible en
 el momento en que publican el evento.
 
-La fase cerró, por ahora, con la gestión de la lista de espera que el
+La fase continuó con la gestión de la lista de espera que el
 algoritmo anterior consume: alta de un paciente con su obra social
 opcional y con la posición siguiente asignada automáticamente, listado
 ordenado, reordenamiento manual por el profesional —reemplazo completo del
@@ -1890,4 +1890,35 @@ interruptor de configuración adicional: un profesional que quiere
 anteponer a sus pacientes recurrentes lo expresa subiéndoles la prioridad
 individualmente, el mismo mecanismo que ya usa para cualquier otro
 paciente al que quiere anteponer.
+
+La fase se cerró, sin agregar entidades ni endpoints nuevos, con una suite
+de tests de extremo a extremo que ejercita el motor de turnos completo tal
+como lo describen en conjunto las tareas anteriores, en lugar de cada regla
+por separado: disponibilidad, reserva, confirmación, cancelación,
+reasignación y completado encadenados sobre un mismo turno, contra una base
+de datos real y con los puertos sin canal externo todavía —mensajería y
+respuesta de lista de espera— sustituidos por dobles configurables. A
+diferencia de las suites de módulo, que sustituyen también el puerto de
+reasignación por un espía para aislar la prueba de cancelación de la de
+reasignación, esta suite deja conectado el adaptador real de ese puerto,
+porque su objetivo es precisamente comprobar que una cancelación real
+dispara una reasignación real, no una versión simulada de ella. Además del
+recorrido completo, la suite aloja dos escenarios que ninguna suite de
+módulo cubre por sí sola: las tres modalidades de franja extra para
+paciente nuevo ejercitadas juntas, y un escenario con dos organizaciones
+simultáneas cuyos profesionales y pacientes comparten nombre y documento
+—un caso válido, porque la unicidad del documento está acotada por
+organización y no es global—, para comprobar que el acotamiento por
+inquilino sostiene a la vez la reserva, la cancelación, la reasignación y
+la lista de espera. Los candidatos de lista de espera que usa la suite se
+crean sin los datos obligatorios de una reserva ni consentimiento
+registrado, porque el algoritmo de reasignación crea su turno directamente
+y no pasa por esas validaciones. Ejecutada en serie, la suite end-to-end
+completa del backend corre en verde; en el modo paralelo por defecto,
+algunas pruebas de esta suite y de otras ya existentes fallan de forma
+intermitente por conflictos de una transacción serializable al compartir
+todos los archivos una misma base de datos local — una condición
+preexistente del entorno de pruebas que esta tarea deja señalada como
+pendiente de una fase de endurecimiento posterior, en lugar de resolverla
+aquí.
 
