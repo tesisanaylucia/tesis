@@ -1589,6 +1589,24 @@ vínculo de tratamiento vigente —la misma restricción que ya rige el resto
 de sus lecturas— y con la respuesta recortada a ese vínculo, en lugar de
 traer los de todos los profesionales que atienden al mismo paciente.
 
+Una revisión posterior, de prioridad baja, agregó a la respuesta del
+paciente una proyección de conveniencia: la fecha de su última consulta,
+calculada como el máximo entre las fechas de última consulta de todos sus
+vínculos con profesionales. El diseño por vínculo no se cuestionó ni se
+modificó —una sesión sigue perteneciendo a la relación con un profesional
+determinado, no a la persona en abstracto, como ya fundamenta la
+introducción de esa columna más arriba en esta misma subsección— pero el
+documento de requisitos habla de la última consulta del paciente en
+singular, un dato que hasta entonces sólo se obtenía con una llamada aparte
+al punto de estado de datos o calculando el máximo del lado cliente. Se
+extrajo el cálculo, ya existente para ese punto de estado de datos, a una
+función compartida, de modo que la nueva proyección y la respuesta que ya la
+ofrecía no puedan llegar a calcular el máximo de dos maneras distintas. El
+campo se resuelve sobre los mismos vínculos que la respuesta del paciente ya
+trae, de modo que hereda sin código adicional el recorte por vínculo que un
+llamante con rol profesional ya tenía: no se introdujo ninguna comprobación
+de autorización propia. No hubo cambios de esquema.
+
 ### 3.2.3 Motor de Turnos
 
 El módulo de Turnos comenzó, igual que Profesionales y Pacientes antes que él, por
