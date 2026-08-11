@@ -2183,3 +2183,39 @@ ventana de validez, orquestación de la cerradura electrónica,
 notificación al profesional) que el propio anteproyecto ubica en una fase
 posterior del proyecto.
 
+Una auditoría posterior del código sobre `main`, hecha al preparar el
+trabajo de la aplicación móvil del profesional (fase 7 del anteproyecto,
+que da por existente un punto de acceso `GET /turnos` con filtros por
+profesional y por rango de fechas) y el alta y baja de turnos desde
+administración, encontró que ese punto de acceso general nunca se había
+implementado: el quinto hallazgo de la revisión anterior había agregado
+la agenda propia del profesional, acotada a un identificador de
+profesional nombrado en la propia ruta y sin más filtro que el rango de
+fechas, pero ningún ticket del módulo había expuesto la lectura de
+turnos por paciente ni por estado, ni una que admitiera filtrar por
+cualquier profesional del inquilino en una sola ruta. Se agregó entonces
+`GET /turnos`, con cuatro filtros —profesional, paciente, rango de
+fechas y estado— combinables entre sí, cada resultado acompañado de los
+datos mínimos del paciente (nombre y apellido) que el documento de
+requisitos pide para esta lectura en particular, y con la respuesta
+paginada, a diferencia de la agenda propia del profesional, ya que aquí
+el conjunto de resultados no está acotado de antemano por un único
+identificador de profesional y un rango de fechas con tope.
+
+El punto de acceso general reutiliza, para el acotamiento por rol, el
+mismo criterio que ya aplican las transiciones de estado de un turno
+individual: un profesional que nombra explícitamente el identificador de
+otro recibe prohibido (403), no "no encontrado", porque ya conoce su
+propio identificador y negarlo no revela nada nuevo; en cambio, cuando el
+filtro es por paciente, se aplicó el criterio contrario —"no
+encontrado" ante un paciente con el que el profesional no tiene vínculo
+de tratamiento—, siguiendo la distinción ya fijada para el resto de las
+lecturas de pacientes, porque en ese caso el profesional no tiene
+conocimiento previo de a quién trata otro. Cuando ni un profesional ni un
+paciente se nombran en la consulta, se exige al menos uno de los dos por
+parte de administración —el propio documento de requisitos lo recomienda
+para evitar un recorrido sin acotar de los turnos del inquilino—,
+exigencia que nunca llega a manifestarse para un profesional porque su
+propia identidad ya cumple ese rol de forma incondicional, se la nombre o
+no en la consulta.
+
