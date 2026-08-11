@@ -2243,3 +2243,33 @@ de la consulta de disponibilidad, y una verificación del flujo de
 cancelación real que confirma que la modalidad automática libera la
 retención en cuanto concluye su propio recorrido de la lista de espera.
 
+Una tercera auditoría automatizada, corrida el mismo día sobre `main`,
+señaló un hallazgo de naturaleza distinta a los anteriores: no un
+requisito sin implementar, sino la ausencia total de una funcionalidad ya
+dada por cerrada. Reportó que el ABM administrativo del calendario de
+feriados —controlador, servicio y las cuatro rutas de alta, consulta,
+edición y baja— no existía en el código de `main`, pese a que el ticket
+correspondiente figuraba como terminado; sólo encontró el modelo de datos
+del feriado y su lectura de sólo lectura desde el cálculo de
+disponibilidad. Se abrió un ticket formal para determinar con certeza el
+estado real de esa funcionalidad antes de decidir cualquier acción sobre
+el ticket original —reabrirlo, fusionar una rama pendiente o corregir un
+cierre prematuro—, en lugar de confiar directamente en el hallazgo de la
+auditoría. La verificación, hecha sobre una copia recién actualizada del
+repositorio, encontró el controlador, el servicio y las cuatro rutas
+presentes en `main`, incorporados por una fusión registrada el mismo día
+en que corrió la auditoría; el ticket original no se cerró de forma
+prematura ni quedó código huérfano en una rama sin fusionar; simplemente
+la auditoría se ejecutó, con toda probabilidad, contra una copia del
+repositorio anterior a esa fusión. No hizo falta entonces ningún cambio de
+código ni de estado en Jira, sólo dejar registrada la verificación. El
+episodio es afín a la lección ya dejada al implementar la máquina de
+estados del turno —que una rama en curso debe compararse contra
+`origin/main` recién traído y no contra una referencia local que no
+avanza sola—, aplicada aquí no a un chequeo de conflictos antes de fusionar
+sino a la interpretación de un hallazgo de auditoría: un reporte de
+ausencia de código es tan dependiente de la frescura de la copia auditada
+como un chequeo de conflictos, y merece la misma verificación explícita
+antes de actuar sobre él, en particular antes de revertir el estado de un
+ticket ya dado por terminado.
+
