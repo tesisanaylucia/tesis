@@ -2273,3 +2273,31 @@ como un chequeo de conflictos, y merece la misma verificación explícita
 antes de actuar sobre él, en particular antes de revertir el estado de un
 ticket ya dado por terminado.
 
+Una cuarta auditoría, dirigida esta vez puntualmente a la regla de
+franja extra para paciente nuevo, encontró un hallazgo del primer tipo: un
+campo de configuración que se persistía y se exponía sin que ninguna
+lógica lo leyera. El diagrama de base de datos y la tarea que declaró la
+configuración del profesional habían modelado la franja extra con dos
+campos separados —una cantidad de horas y una modalidad de tres valores—,
+pero al implementarse la regla de paciente nuevo la cantidad de horas
+nunca se incorporó al cálculo: sólo la modalidad terminó gobernando dónde
+se ubica el doble turno, exactamente como se describe más arriba en esta
+misma sección. La auditoría no dio por sentado cuál de las dos lecturas
+posibles correspondía —aplicar la cantidad de horas al cálculo, o
+reconocerla como diseño descartado— y dejó la decisión, junto con su
+justificación, a cargo de quien retomara el ticket. Releer el propio
+documento de requisitos que dio origen a la regla de paciente nuevo
+resolvió la pregunta: describe la franja extra únicamente en términos de
+las tres modalidades de ubicación, y define el turno adicional con la
+misma duración de consulta del profesional, sin ninguna referencia a una
+cantidad de horas que ensanche o desplace ese turno. La cantidad en horas
+no había quedado sin conectar por un olvido de implementación; había
+quedado obsoleta en el momento en que la regla efectivamente
+implementada resolvió el posicionamiento con las tres modalidades. Se
+retiró entonces la columna con una migración que deja registrado el
+motivo en su propio comentario, siguiendo el mismo criterio ya aplicado al
+retirar el campo de diagnóstico agregado fuera de alcance en Plataforma
+base, y se actualizaron en consecuencia el punto de configuración, la
+respuesta que expone los datos del profesional y los datos de ejemplo
+sembrados para el ambiente piloto.
+

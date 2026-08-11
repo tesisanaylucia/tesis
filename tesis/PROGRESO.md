@@ -38,7 +38,7 @@ citas y datos volátiles pendientes de verificación), `en progreso`,
 | 3.2.0 Fundaciones | en progreso | FASE-2_PROMPT-10 (refinamiento del modelo de datos: baja lógica como marca temporal común a profesionales y pacientes, documentación de la redundancia deliberada del puntero de auditoría) | backend |
 | 3.2.1 Profesionales | completo (pendiente de revisión) | FASE-1_PROMPT-8 (TASK-85: mínimo de una matrícula provincial y una nacional para aceptar pacientes nuevos) | backend |
 | 3.2.2 Pacientes | completo (pendiente de revisión) | FASE-2_PROMPT-12 (TASK-83: punto de acceso administrativo para configurar el umbral de inactividad, con tope de doce meses aplicado también en la lectura) | backend |
-| 3.2.3 Motor de Turnos | en progreso | FASE-3_PROMPT-14 (TASK-81, verificación sobre TASK-78: confirmación de que el ABM de feriados sí está en `main`; el hallazgo de la auditoría era un falso negativo por copia desactualizada) | backend |
+| 3.2.3 Motor de Turnos | en progreso | FASE-3_PROMPT-15 (TASK-86, corrección a TASK-37/TASK-24: `franja_extra_nuevos` nunca se leía en el cálculo de slots; se documentó como obsoleto y se eliminó el campo) | backend |
 | 3.2.4 Notificaciones y Scheduler | sin iniciar | — | backend |
 | 3.2.5 Capa conversacional y WhatsApp | sin iniciar | — | backend |
 | 3.2.6 Cerradura TTLock | sin iniciar | — | backend |
