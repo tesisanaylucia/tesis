@@ -36,7 +36,7 @@ citas y datos volátiles pendientes de verificación), `en progreso`,
 |---|---|---|---|
 | 3.1 Arquitectura general | sin iniciar | — | — |
 | 3.2.0 Fundaciones | en progreso | FASE-2_PROMPT-10 (refinamiento del modelo de datos: baja lógica como marca temporal común a profesionales y pacientes, documentación de la redundancia deliberada del puntero de auditoría) | backend |
-| 3.2.1 Profesionales | completo (pendiente de revisión) | FASE-2_PROMPT-10 (retiro de la fecha de confirmación sin uso; baja lógica como marca temporal) | backend |
+| 3.2.1 Profesionales | completo (pendiente de revisión) | FASE-1_PROMPT-8 (TASK-85: mínimo de una matrícula provincial y una nacional para aceptar pacientes nuevos) | backend |
 | 3.2.2 Pacientes | completo (pendiente de revisión) | FASE-3_PROMPT-11 (edición de datos del paciente habilitada para el profesional tratante, acotada a sus propios pacientes) | backend |
 | 3.2.3 Motor de Turnos | en progreso | FASE-3_PROMPT-11 (revisión ultrareview: feriado en la escritura de turnos, retención del turno liberado en ambas modalidades de reasignación, confirmación del paciente en la reprogramación, agenda propia del profesional) | backend |
 | 3.2.4 Notificaciones y Scheduler | sin iniciar | — | backend |

@@ -815,6 +815,37 @@ dominio —ausencias, fecha de nacimiento del paciente—, sólo que ya no se ap
 que dejó de existir. La representación de la baja lógica del profesional, por su parte, pasó
 a la marca temporal anulable descripta en 3.2.0, común a profesionales y pacientes.
 
+Una revisión posterior, ya con el motor de turnos en desarrollo, encontró una
+inconsistencia entre P1.1/P1.2 y el criterio de aceptación del chatbot que da
+origen a la entidad matrícula: la fuente de verdad exige que el asistente pueda
+mostrar "sus dos matrículas" de un profesional, pero el ABM nunca había exigido
+un mínimo, de modo que un profesional podía quedar sin matrícula alguna o con
+varias del mismo tipo. La corrección se limitó deliberadamente a un único punto
+de escritura en lugar de exigir el mínimo en toda alta o edición del
+profesional: la aceptación de pacientes nuevos —el indicador que P1.5 agregó a
+la configuración y que el asistente conversacional consulta antes de ofrecer un
+profesional— no puede activarse, ni permanecer activa tras una edición de esa
+configuración, si el profesional no cuenta con al menos una matrícula
+provincial y una nacional. Exigir el mínimo en el alta misma se descartó
+porque contradice el propio diseño de P1.2, que permite cargar las matrículas
+de forma incremental después de crear el profesional, y porque habría exigido
+adaptar la numerosa batería de pruebas de otros módulos que crean un
+profesional sin matrículas por no ser su objeto de prueba y dependen del valor
+por defecto del indicador. Por la misma razón se dejó deliberadamente sin
+cerrar un resquicio simétrico: nada impide retirarle a un profesional que ya
+acepta pacientes nuevos la matrícula que lo habilitaba, lo que lo dejaría por
+debajo del mínimo sin que ninguna verificación lo advierta; cerrarlo habría
+exigido extender la misma condición a la edición y a la baja de matrículas, y
+esa extensión resultó incompatible con una prueba preexistente que edita la
+única matrícula de un profesional para cambiarle el tipo, ajena por completo a
+este invariante. La inconsistencia queda documentada como una limitación
+conocida en lugar de resuelta a costa de una prueba que no la motivó. Por
+tratarse, igual que el tope de tres matrículas, de un invariante de lectura
+seguida de escritura —se cuentan las matrículas vigentes y solo entonces se
+permite activar el indicador—, la verificación se incorporó a una transacción
+con aislamiento serializable, de modo que una eliminación de matrícula
+concurrente con la activación no pueda dejar pasar a ambas.
+
 ### 3.2.2 Pacientes
 
 El segundo módulo de negocio siguió el mismo criterio de apertura que el
