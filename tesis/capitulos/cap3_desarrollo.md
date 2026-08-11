@@ -1607,6 +1607,32 @@ trae, de modo que hereda sin código adicional el recorte por vínculo que un
 llamante con rol profesional ya tenía: no se introdujo ninguna comprobación
 de autorización propia. No hubo cambios de esquema.
 
+Una auditoría posterior del código encontró que la configurabilidad del plazo
+de inactividad, decidida en la tarea que introdujo la regla del año, nunca
+había sido efectivamente alcanzable: el servicio la leía correctamente desde
+la tabla de configuración por inquilino, pero ningún punto de acceso permitía
+escribirla, de modo que toda organización quedaba fija en el valor por
+defecto. Se encontró además que la lectura no aplicaba ningún límite
+superior al valor configurado, pese a que el documento de requisitos enuncia
+expresamente "un año máximo". Se agregó en consecuencia un punto de acceso
+administrativo que valida el nuevo valor como un entero entre uno y doce
+meses antes de persistirlo, y se incorporó el mismo tope como una segunda
+comprobación en la lectura ya existente, de modo que una fila que llegara a
+superarlo por una vía distinta al punto de acceso —una fila anterior a esta
+corrección, o una escritura directa sobre la base— quede igualmente acotada.
+Ambas comprobaciones leen una única constante compartida, para que el tope no
+pueda actualizarse en un lugar y quedar desactualizado en el otro. Un valor
+que exceda el tope se recorta a doce en la lectura en lugar de descartarse
+como hace un valor sin sentido —no numérico o no positivo—, distinción
+deliberada entre un dato inválido y un dato válido pero excesivo. La
+escritura, al tratarse de la primera invocación real del método de
+configuración por inquilino desde que existe, deja además una entrada de
+auditoría con la clave y el nuevo valor, siguiendo el mismo criterio que el
+proyecto ya aplica a otros cambios de configuración administrativa. El
+inquilino sobre el que se escribe nunca es un parámetro de la solicitud sino
+que se deriva del token de quien administra, de modo que el aislamiento entre
+organizaciones no requirió una comprobación adicional a la del rol.
+
 ### 3.2.3 Motor de Turnos
 
 El módulo de Turnos comenzó, igual que Profesionales y Pacientes antes que él, por
