@@ -1337,6 +1337,19 @@ módulo —el detalle del paciente, su listado, la vinculación con un profesion
 la edición de la prioridad— contiene el valor almacenado, verificado buscándolo
 en la respuesta serializada completa y no sólo en los campos esperados.
 
+Una revisión posterior del esquema, ya con el motor de turnos construido y
+consumiendo este campo, encontró que la prioridad —hasta entonces un entero
+libre entre 1 y 999 que el profesional cargaba a mano, sin una escala
+definida— excedía lo que el algoritmo de reasignación por prioridad
+realmente necesitaba: distinguir quién tiene prioridad sobre quién, no un
+ranking numérico fino. Se la convirtió en un enumerado de cuatro niveles
+(bajo, medio, alto y urgente), nulo con el mismo significado de "sin
+prioridad asignada" que antes tenía el entero ausente. El desempate entre
+dos pacientes del mismo nivel pasó a depender enteramente del orden de la
+lista de espera y de la fecha de creación del registro correspondiente, ya
+que un enumerado de cuatro valores no admite, dentro de un mismo nivel, el
+desempate más fino que sí permitía el rango numérico anterior.
+
 La última tarea de la fase atendió el requisito de carga de pacientes
 preexistentes, cuyos registros la clínica conserva hoy en planillas de cálculo y,
 en algunos casos, únicamente en papel. La particularidad de esta funcionalidad no
@@ -1529,6 +1542,21 @@ optó por derivar los campos efectivamente modificados y por omitir la escritura
 cuando la operación no cambia ningún campo, porque una traza que afirma cambios inexistentes
 degrada el valor del registro contra el cual se rinde cuentas en materia de protección de
 datos personales.
+
+La misma revisión automatizada contra las fuentes de verdad que introdujo
+el estado ausente del turno en el módulo de Turnos (más adelante en este
+capítulo) encontró aquí que el profesional no tenía forma de registrar
+datos faltantes de sus propios pacientes, pese a que el documento de
+requisitos lista esa acción entre las que la aplicación móvil del
+profesional debe permitir: el punto de edición del paciente estaba
+restringido a administración y al proceso automatizado. Se resolvió
+habilitando el mismo rol profesional sobre el mismo punto de acceso y el
+mismo cuerpo de solicitud que ya usa administración, en vez de construir
+uno más angosto limitado a los datos faltantes que ninguna fuente
+describe así, acotado a los pacientes con los que el profesional tiene un
+vínculo de tratamiento vigente —la misma restricción que ya rige el resto
+de sus lecturas— y con la respuesta recortada a ese vínculo, en lugar de
+traer los de todos los profesionales que atienden al mismo paciente.
 
 ### 3.2.3 Motor de Turnos
 
@@ -1940,4 +1968,143 @@ ser válido porque la fecha deje de estar marcada como feriado—, pero
 informa en la propia respuesta cuántos turnos coexisten con la fecha
 recién liberada, a modo de advertencia para una eventual acción manual
 del administrador.
+
+Una revisión posterior del esquema completo del módulo, sin agregar
+funcionalidad nueva propia, corrigió cuatro puntos concretos. Confirmó,
+en primer lugar, que la lista de espera debe conservar su propio
+identificador de organización: aunque tanto el paciente como el
+profesional que enlaza ya lo llevan de forma directa, la lista de espera
+tiene dos padres acotados por organización, y ese único campo es lo que
+obliga a ambos a pertenecer a la misma, mediante las dos claves foráneas
+compuestas que ya la vinculan a cada uno —el mismo caso, ya razonado en
+esta fase, del turno y del vínculo paciente-profesional—. Retiró, en
+segundo lugar, dos campos de la lista de espera que ninguna ruta de
+lectura ni el propio algoritmo de reasignación consumían: la obra social
+opcional que se había incorporado junto con el alta del recurso, y la
+fecha de solicitud, duplicado exacto de la fecha de creación de la fila
+—el registro de la lista de espera se crea en el mismo instante en que
+el paciente pide el turno, de modo que ambas columnas sólo podían
+contener siempre el mismo valor—. Retiró, con el mismo razonamiento, la
+fecha de solicitud de la solicitud de receta del módulo de Pacientes,
+duplicada de la misma manera respecto de su propia fecha de creación.
+
+Agregó, en tercer lugar, un nuevo estado al turno —ausente— para el caso
+en que el paciente no se presenta, distinto de completado, alcanzable
+únicamente desde confirmado y con la misma restricción de origen que ya
+regía la transición a completado desde la fase anterior: recién en ese
+estado el profesional puede efectivamente distinguir si la sesión
+ocurrió o no. Junto con el nuevo estado se incorporó una tarea
+programada semanal que resuelve, como completado y nunca como ausente,
+todo turno reservado o confirmado cuyo horario ya pasó sin que el
+profesional lo haya marcado de una forma o de la otra —marcar una
+ausencia es una decisión que el sistema no puede inferir por sí solo,
+mientras que asumir que la sesión ocurrió es la opción conservadora que
+el propio pedido de la revisión estableció como comportamiento por
+omisión—.
+
+Esa tarea programada expuso, en cuarto lugar, un vacío que ninguna
+funcionalidad anterior había necesitado llenar: el rol reservado para
+procesos automáticos, declarado desde la corrección de Fundaciones que
+lo agregó, nunca había sido sembrado como una fila real, porque hasta
+entonces toda entrada de auditoría se atribuía al actor humano o
+conversacional de la solicitud que la originaba, y una tarea programada
+no tiene una solicitud detrás. Se sembró entonces, por organización, el
+usuario de ese rol que el propio rol ya anticipaba —con un correo
+determinístico derivado del identificador de la organización, para que
+la tarea programada pueda ubicarlo por organización y rol sin necesitar
+almacenar ni propagar un identificador propio—, en una migración de
+datos para las organizaciones ya existentes y en el mismo script de
+siembra de desarrollo para las que se crean después, siguiendo el mismo
+patrón de doble siembra que ya usa el umbral de inactividad de
+pacientes. La alternativa de debilitar la traza de auditoría para
+admitir una mutación sin actor se descartó por introducir, sólo para
+este caso, una excepción a una regla que hasta entonces no tenía
+ninguna.
+
+Una revisión automatizada del código completo contra el anteproyecto de
+tesis y el documento de requisitos, ejecutada con varios agentes en
+paralelo y triada punto por punto por la usuaria, encontró seis brechas
+concretas entre lo construido hasta ese momento y lo que esas fuentes
+describen, y las cerró sin agregar entidades nuevas al esquema salvo una.
+Encontró, primero, que el camino de escritura de turnos —la reserva y la
+reprogramación— nunca consultaba el calendario de feriados, a diferencia
+del cálculo de franjas libres que sí lo hacía desde la fase de
+disponibilidad: un turno podía reservarse o reprogramarse directamente a
+una fecha feriada sin pasar por las sugerencias que sí la excluían. Se
+resolvió incorporando esa consulta al método que ambas rutas de escritura
+ya comparten para decidir si un instante está libre, en vez de repetirla
+en cada una por separado, para que las dos no puedan llegar a definir
+"libre" de manera distinta entre sí.
+
+Encontró, segundo, que un turno recién liberado por una cancelación era
+inmediatamente reservable por cualquiera, tanto en la modalidad manual de
+reasignación —donde el documento de requisitos pide una retención de
+veinticuatro horas antes de que el bot pueda volver a ofrecerlo— como en
+la automática, mientras el algoritmo todavía recorre la lista de espera
+ofreciéndolo a sus candidatos. La retención se modeló con una única marca
+de tiempo sobre el propio turno cancelado en lugar de una tabla aparte,
+que alcanza para expresar los dos casos: en la modalidad manual es un
+plazo real de veinticuatro horas que no necesita liberarse explícitamente,
+porque el turno cancelado simplemente deja de contarse como ocupado en
+cuanto el reloj supera esa marca; en la automática es sólo un techo de
+seguridad ante una caída del proceso a mitad del recorrido, y la retención
+real se libera explícitamente en cuanto ese recorrido concluye, sea porque
+alguien aceptó la oferta o porque la lista se agotó sin que nadie
+aceptara. La duración de ese techo se dejó como una constante aparte,
+explícitamente distinta de la ventana real de "cuánto tiempo tiene un
+candidato para responder", que pertenece a una fase posterior y todavía
+no existe.
+
+Encontró, tercero, que la reprogramación individual y la reorganización
+manual de la agenda aplicaban el nuevo horario y recién después avisaban
+al paciente, sin esperar ninguna respuesta suya, pese a que el documento
+de requisitos pide que el sistema le pregunte si acepta el cambio antes
+de aplicarlo. Se resolvió con un puerto de dominio nuevo que reproduce
+deliberadamente la forma del que ya resuelve la aceptación de una oferta
+de lista de espera: se pregunta antes de escribir, y el adaptador de
+reemplazo —mientras no exista un canal real de WhatsApp— siempre responde
+que no, para que ninguna reprogramación se dé por aceptada sin que nadie
+realmente la haya aceptado. Esa confirmación sólo se exige cuando
+administración o el propio profesional reprograman por su cuenta, nunca
+cuando lo hace el proceso automatizado en nombre del paciente, porque en
+ese caso el pedido del propio paciente ya es su aceptación; la
+reorganización manual de la agenda, en cambio, la exige siempre, porque a
+esa ruta nunca llega el proceso automatizado. Con el único adaptador
+disponible respondiendo siempre que no, toda reprogramación unilateral
+queda hoy efectivamente bloqueada hasta que una fase posterior conecte el
+canal real — la misma situación, ya aceptada, en la que se encuentra la
+reasignación automática de turnos desde que se implementó su propio
+puerto de respuesta.
+
+Encontró, cuarto, que un profesional no tenía forma de registrar datos
+faltantes de sus propios pacientes, pese a que el documento de requisitos
+lista esa acción entre las que la aplicación móvil del profesional debe
+permitir: el punto de acceso de edición del paciente estaba restringido a
+administración y al proceso automatizado. Se resolvió reutilizando
+exactamente el mismo cuerpo de solicitud y el mismo servicio que ya usa
+administración, en lugar de construir un formulario más angosto limitado
+a los datos faltantes que el documento de requisitos no describe, con el
+alcance acotado a los pacientes con los que el profesional tiene un
+vínculo de tratamiento vigente —la misma restricción que ya rige el resto
+de sus lecturas— y la respuesta recortada a su propio vínculo.
+
+Encontró, quinto, que no existía ningún punto de acceso de backend para
+la agenda propia del profesional, la fuente que las vistas diaria,
+semanal y mensual de la aplicación móvil necesitan: sólo existía la
+consulta de franjas libres, que responde una pregunta distinta. Se
+agregó como un punto de acceso nuevo, separado de la disponibilidad y
+restringido al propio profesional o a administración —a diferencia de la
+disponibilidad y las ausencias, abiertas a cualquier usuario autenticado
+del inquilino—, porque un turno nombra a un paciente concreto y "qué
+pacientes ve este profesional y cuándo" no es información de agenda
+pura.
+
+De los dieciséis hallazgos que arrojó esa revisión, los seis anteriores
+son los que se resolvieron de inmediato; el resto quedó explícitamente
+marcado para otra etapa —ya sea por tratarse de una decisión de diseño ya
+tomada y confirmada, ya sea por corresponder a un cimiento (precios y
+copago, distinción de la obra social provincial, código de acceso y su
+ventana de validez, orquestación de la cerradura electrónica,
+notificación al profesional) que el propio anteproyecto ubica en una fase
+posterior del proyecto.
 
