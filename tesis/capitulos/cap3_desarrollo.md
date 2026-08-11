@@ -2219,3 +2219,27 @@ exigencia que nunca llega a manifestarse para un profesional porque su
 propia identidad ya cumple ese rol de forma incondicional, se la nombre o
 no en la consulta.
 
+El segundo hallazgo de esa misma revisión —que un turno liberado por una
+cancelación quedaba inmediatamente reservable por cualquiera, tanto en
+modalidad manual de reasignación, donde el documento de requisitos exige
+una retención de veinticuatro horas antes de que el sistema pueda volver a
+ofrecerlo, como en la automática, mientras el algoritmo todavía recorre la
+lista de espera— dio lugar más adelante a un ticket formal de corrección
+sobre la tarea original del algoritmo de reasignación por prioridad. Al
+retomar ese ticket se confirmó que la implementación ya estaba hecha,
+fijada por la propia revisión el mismo día: una columna de fecha y hora en
+el turno que expresa el plazo de retención, leída por el servicio de
+disponibilidad como parte de su misma definición de "ocupado". Lo que
+faltaba era la prueba directa de los tres criterios de aceptación que el
+ticket fijaba en términos de ese servicio de lectura —un turno retenido
+hace una hora no debe ofrecerse, uno retenido hace veinticinco sí, y la
+modalidad automática no debe verse afectada—, cobertura que hasta entonces
+sólo existía indirectamente, sobre el estado del turno cancelado o sobre
+el chequeo interno de un instante puntual, nunca contra el propio cálculo
+de franjas libres con una base de datos real. La corrección quedó así
+acotada a tests: dos casos que fijan la marca de retención directamente en
+los dos extremos del plazo de veinticuatro horas y verifican el resultado
+de la consulta de disponibilidad, y una verificación del flujo de
+cancelación real que confirma que la modalidad automática libera la
+retención en cuanto concluye su propio recorrido de la lista de espera.
+
