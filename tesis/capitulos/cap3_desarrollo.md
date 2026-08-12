@@ -2359,3 +2359,51 @@ un inquilino —con sus propios parámetros, potencialmente distintos de los
 de la plantilla base— no pudiera quedar en desacuerdo con lo que el
 servicio efectivamente exige.
 
+Con el motor de plantillas disponible, la segunda tarea del módulo puso
+en marcha el primer trabajo programado que efectivamente lo consume: un
+job que corre cada hora y detecta los turnos reservados que entran en la
+ventana de 24 horas antes de la cita, tal como lo pide el documento de
+requisitos. La ventana de detección no se definió como un instante
+puntual sino como un rango —entre 23 y 25 horas de anticipación—, ancho
+suficiente para que un turno no pudiera atravesar sin ser detectado la
+brecha entre dos corridas horarias consecutivas del job. Para cada turno
+que entra en esa ventana, el job renderiza la plantilla de confirmación
+con los datos del paciente, del profesional y de la cita, y entrega el
+texto resultante al puerto de mensajería —hoy el adaptador de prueba, ya
+construido en la fase de Fundaciones, hasta que la integración real con
+WhatsApp se incorpore en una fase posterior— y dejó registrado el intento
+en la auditoría del sistema, con el mismo mecanismo ya usado en el resto
+del proyecto para dejar constancia de quién hizo qué y sobre qué recurso.
+
+La condición de no reenvío que exige el documento de requisitos —que un
+turno ya procesado no vuelva a recibir el mensaje en una corrida
+posterior— se resolvió con una columna nueva en el turno, dedicada
+exclusivamente a registrar el momento en que se envió la solicitud de
+confirmación, en lugar de reutilizar la columna que ya existía para
+registrar la respuesta del paciente. Esa columna previa, incorporada
+durante el desarrollo del Motor de Turnos, tiene un significado distinto
+y ya construido —se completa únicamente cuando el paciente responde que
+confirma su asistencia—, de modo que superponerle también el significado
+de "ya se envió la pregunta" habría hecho ambigua la columna y, además,
+no habría resuelto el problema real: con una ventana de detección de dos
+horas y un job que corre cada hora, un turno sin respuesta habría vuelto
+a aparecer como candidato en la corrida siguiente y recibido el mensaje
+por segunda vez. El texto del documento de requisitos, que describe la
+condición de no reenvío en términos de esa columna anterior, se
+interpretó como la descripción funcional del requisito de idempotencia y
+no como un contrato literal sobre qué campo debía usarse —el mismo
+criterio ya aplicado al traducir los nombres de las claves de plantilla a
+identificadores en inglés, más arriba en esta misma sección.
+
+Un turno cuyo paciente no tiene un número de celular registrado se deja
+sin marcar en lugar de tratarse como procesado, siguiendo el mismo
+criterio de tolerancia ya adoptado en el motor de reasignación de lista
+de espera: el sistema simplemente no puede contactar a ese paciente, y
+dejarlo sin marcar permite que una corrida posterior lo intente de nuevo
+si el dato llegara a completarse mientras el turno sigue dentro de la
+ventana. La respuesta del paciente al mensaje de confirmación —si acepta
+o no— quedó deliberadamente fuera del alcance de esta tarea: su
+procesamiento corresponde a la capa conversacional que se incorporará en
+una fase posterior, que es quien efectivamente invoca la operación de
+confirmar o cancelar el turno ya existente en el Motor de Turnos.
+
