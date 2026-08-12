@@ -2493,3 +2493,44 @@ al no tener todavía ninguna lógica real que ejercitar, se probó
 efecto observable más allá del mensaje de registro que declara su propio
 estado de placeholder.
 
+La última pieza de este módulo cerró una limitación que había quedado
+declarada desde que se construyó el algoritmo de reasignación automática
+en el módulo de Turnos (sección 3.2.3): la pregunta "¿el candidato de la
+lista de espera aceptó el turno liberado que se le ofreció?" se resolvía
+detrás de un puerto —`WaitlistResponsePort`— cuyo único adaptador
+existente respondía "no" en el mismo instante en que se lo llamaba,
+porque todavía no existían ni el canal real de conversación por WhatsApp
+ni una ventana de tiempo real dentro de la cual esperar una respuesta. El
+propio código dejaba constancia de esa limitación como una decisión
+deliberada, a la espera de que ambas piezas llegaran.
+
+La ventana de tiempo llegó con esta tarea, aunque el canal de WhatsApp
+siga sin existir. El requisito de negocio es el mismo que ya gobierna la
+autocancelación por falta de confirmación (sección 3.2.3): un candidato
+tiene cuatro horas para responder a la oferta de un turno liberado antes
+de que el sistema la dé por vencida y continúe con el siguiente candidato
+de la lista, en el mismo orden de prioridad ya establecido. Sostener esa
+espera obligó a reemplazar el mecanismo por el que el algoritmo de
+reasignación recorría la lista: donde antes recorría a todos los
+candidatos uno tras otro dentro de una única operación —viable solo
+porque la respuesta llegaba al instante—, ahora ofrece el turno a un
+único candidato, dentro de una tabla nueva que registra esa oferta y su
+estado, y se detiene; avanzar al candidato siguiente, o reservar el turno
+para quien acepta, quedó como una operación separada que cualquier
+disparador externo puede invocar en el momento en que corresponda. Hoy el
+único disparador es un trabajo programado nuevo, que corre cada quince
+minutos con la misma infraestructura por inquilino que los demás trabajos
+de este módulo y vence las ofertas que llevan más de cuatro horas sin
+respuesta; el día que el canal real de WhatsApp exista, la respuesta
+efectiva del paciente va a invocar la misma operación de aceptación por
+el mismo camino, sin que el algoritmo de recorrido en sí —ya construido en
+el módulo de Turnos— necesite cambiar de nuevo.
+
+Esta tarea también resolvió, aunque de forma incidental, un caso que el
+mecanismo anterior dejaba sin cubrir con precisión: un candidato sin
+número de celular registrado no tiene ninguna vía real por la que
+recibir ni responder una oferta, así que se sigue tratando, como ya
+ocurría antes de esta tarea, como un rechazo inmediato en lugar de
+ocupar cuatro horas de la ventana de reasignación sin ninguna
+posibilidad real de respuesta.
+
