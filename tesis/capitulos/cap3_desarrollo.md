@@ -2440,3 +2440,56 @@ de modo que un turno que el paciente confirma o cancela mientras el job
 está corriendo simplemente deja de ser candidato en lugar de competir con
 esa decisión.
 
+La cuarta tarea del módulo cerró el tercer trabajo programado del flujo de
+notificaciones, el recordatorio de turno, y dejó además el andamiaje del
+futuro trabajo de expiración de códigos de acceso de la cerradura
+inteligente, que se completa recién en una fase posterior. A diferencia
+del job de confirmación, cuya ventana de 24 horas es una regla fija del
+documento de requisitos, el recordatorio se pidió explícitamente
+configurable por inquilino —"por defecto X horas antes del turno,
+configurable por tenant"—, de modo que la cantidad de horas de
+anticipación se incorporó como una fila más de la configuración de
+organización, con el mismo mecanismo de valor por defecto y siembra por
+migración ya usado para las demás reglas de negocio de alcance
+organizacional del proyecto. El valor por defecto elegido, 24 horas,
+coincide con la ventana que ya usa el job de confirmación y con el propio
+texto de la plantilla base del recordatorio, que anuncia el turno para
+"mañana". El job solo selecciona turnos en estado confirmado, no
+reservado —el recordatorio es una cortesía para un turno que el paciente
+ya confirmó, un paso distinto de la solicitud de confirmación misma—, y
+reutiliza la misma técnica de banda de detección de dos horas alrededor
+del valor configurado que ya usa el job de confirmación, para que un
+turno no pueda atravesar sin ser detectado la brecha entre dos corridas
+horarias consecutivas. La condición de no reenvío se resolvió de la misma
+manera que en el job de confirmación: una columna nueva y dedicada en el
+turno, distinta de la que registra la respuesta del paciente, que solo
+registra que el recordatorio ya se envió.
+
+El segundo trabajo programado que exige el ticket, la expiración de
+códigos de acceso temporales de la cerradura TTLock, no pudo
+implementarse todavía en su forma real porque la entidad que representa
+esos códigos no existe aún en el modelo de datos: su incorporación está
+planificada para una fase posterior, cuando se integre el proveedor de
+cerradura inteligente. El ticket pide explícitamente, para esta tarea,
+solo el andamiaje: un trabajo programado real, con su firma definitiva,
+que se ejecute sin errores y no produzca ningún efecto todavía. Se
+construyó como un módulo nuevo y separado, pensado como el lugar donde
+esa futura entidad y su lógica de expiración van a vivir, con un
+comentario en el código que documenta la consulta que el trabajo va a
+resolver una vez que la entidad exista. Se programó con una frecuencia de
+ejecución distinta a la del recordatorio —cada quince minutos en lugar de
+cada hora—, tanto para dejar documentada la independencia entre ambos
+trabajos que pide el ticket como porque un código de acceso vigente más
+allá de lo debido es una exposición de acceso físico, de una naturaleza
+distinta a una demora en el envío de un mensaje.
+
+Ambos trabajos se cubrieron con pruebas unitarias, sin agregar pruebas de
+extremo a extremo nuevas: la lógica de selección, ventana e idempotencia
+del recordatorio es enteramente reproducible con un cliente de Prisma
+simulado y un reloj controlado, siguiendo el mismo criterio ya aplicado a
+los otros trabajos programados del módulo, y el trabajo de expiración,
+al no tener todavía ninguna lógica real que ejercitar, se probó
+únicamente en que se ejecuta sin lanzar errores y no produce ningún
+efecto observable más allá del mensaje de registro que declara su propio
+estado de placeholder.
+
