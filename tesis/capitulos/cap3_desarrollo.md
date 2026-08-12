@@ -2301,3 +2301,61 @@ base, y se actualizaron en consecuencia el punto de configuración, la
 respuesta que expone los datos del profesional y los datos de ejemplo
 sembrados para el ambiente piloto.
 
+### 3.2.4 Notificaciones y Scheduler
+
+El módulo de Notificaciones y recordatorios se abrió con el motor de
+plantillas de mensajes, el componente sobre el que se apoyan tanto los
+trabajos programados de este mismo módulo —confirmación de turno,
+recordatorio, aviso de cancelación— como el chatbot de la capa
+conversacional en una fase posterior, sin que ninguno de los dos exista
+todavía: la tarea se acotó deliberadamente a producir el texto final de
+un mensaje a partir de una clave y un conjunto de parámetros, sin enviar
+nada, dejando el envío efectivo para cuando el puerto de mensajería se
+integre con un proveedor real.
+
+El documento de requisitos nombra las cinco plantillas base y su clave en
+español —confirmación de turno, recordatorio de turno, aviso de
+cancelación, aviso de reasignación y solicitud de consentimiento—, pero
+esa nomenclatura se tradujo a identificadores en inglés siguiendo la
+misma convención de renombrado ya aplicada en tareas anteriores del
+Motor de Turnos: el texto en español del ticket describe la
+funcionalidad que el requisito pide, no un contrato literal sobre el
+nombre del símbolo. La clave de reasignación se nombró además reutilizando
+el vocabulario ya existente para ese mismo evento en el puerto de
+respuesta de lista de espera, en lugar de introducir un segundo nombre
+para el mismo concepto. El texto de cada plantilla, en cambio, se dejó en
+español sin traducir: a diferencia de un identificador de código, es
+contenido que el paciente lee directamente por WhatsApp, y por lo tanto
+sigue el idioma del dominio y no el de la implementación.
+
+El almacenamiento de las plantillas siguió el mismo mecanismo de
+configuración por inquilino ya construido para las reglas de negocio del
+Motor de Turnos y de Pacientes: cada plantilla vive bajo una clave propia
+en la configuración de la organización, y el servicio recurre al texto
+base del sistema únicamente cuando el inquilino no definió el suyo. Esa
+misma configuración es la que permite, sin cambios de código, que cada
+organización redacte sus mensajes con un tono propio —el requisito de
+marca blanca que el documento de requisitos plantea para el sistema en su
+conjunto—. Siguiendo el criterio ya fijado para toda regla de alcance
+tenant —que la fila por defecto debe existir desde el principio en la
+configuración de cada organización y no aparecer recién la primera vez
+que alguien la personaliza—, las cinco plantillas base se sembraron
+también mediante una migración de datos, además de en el script de
+siembra de desarrollo, con la misma condición de no sobrescribir nunca un
+texto que la clínica ya hubiera modificado.
+
+La validación del motor de renderizado se ajustó estrictamente a los
+criterios de aceptación del ticket: una clave de plantilla inexistente y
+un parámetro faltante son, cada uno, un error descriptivo y no un
+resultado parcial. En particular, se descartó devolver el texto con el
+marcador de posición sin reemplazar ante un parámetro faltante —un
+mensaje que llegara al paciente con una llave literal en su texto sería
+peor que no enviar ningún mensaje—, de modo que la ausencia de un
+parámetro requerido interrumpe el renderizado antes de producir ningún
+texto. La extracción de los nombres de parámetro que exige una plantilla
+se hizo a partir del propio texto de la plantilla, y no de una lista
+declarada aparte para cada clave, para que la plantilla personalizada de
+un inquilino —con sus propios parámetros, potencialmente distintos de los
+de la plantilla base— no pudiera quedar en desacuerdo con lo que el
+servicio efectivamente exige.
+
