@@ -2407,3 +2407,36 @@ procesamiento corresponde a la capa conversacional que se incorporará en
 una fase posterior, que es quien efectivamente invoca la operación de
 confirmar o cancelar el turno ya existente en el Motor de Turnos.
 
+Con la solicitud de confirmación ya en marcha, la tercera tarea del módulo
+cerró el otro extremo de ese mismo flujo: un segundo trabajo programado
+que, cada 15 minutos, cancela automáticamente todo turno reservado cuya
+solicitud de confirmación lleva 4 horas o más sin respuesta, tal como lo
+exige el documento de requisitos, y dispara el mismo mecanismo de
+reasignación que ya usa una cancelación pedida por una persona, para que
+el turno liberado pueda ofrecerse a la lista de espera del profesional.
+El documento de requisitos original pedía además "contemplar que el
+mensaje puede haberse enviado en fin de semana"; esa condición se
+interpretó, siguiendo una aclaración explícita del propio ticket, no como
+una extensión del plazo de 4 horas sino como una exigencia sobre el propio
+trabajo programado: que siga corriendo también los fines de semana para
+detectar a tiempo los casos que cruzan ese límite, sin ninguna rama de
+código adicional más allá de la comparación de marcas de tiempo que el
+job ya hace. El motivo de la cancelación se registró extendiendo el mismo
+enumerado que ya distinguía la cancelación masiva por ausencia del
+profesional de una cancelación ordinaria, en lugar de introducir un
+mecanismo paralelo, con un valor nuevo agregado mediante una migración
+escrita a mano —Prisma no soporta, en la versión usada por este proyecto,
+declarar el agregado de un valor a un enumerado de PostgreSQL de forma
+automática—, el mismo procedimiento ya empleado para incorporar el rol
+reservado a procesos automatizados en una fase anterior. La escritura de
+la transición de estado no pasa por la ventana de aviso mínimo que sí
+rige una cancelación pedida por una persona, porque esa ventana existe
+para desalentar una cancelación de último momento sin avisar y no tiene
+sentido aplicada a una cancelación que el propio sistema dispara al no
+recibir respuesta; y queda protegida contra condiciones de carrera con la
+misma técnica que el resto del proyecto —la actualización solo afecta al
+turno si su estado sigue siendo el esperado en el momento de escribir—,
+de modo que un turno que el paciente confirma o cancela mientras el job
+está corriendo simplemente deja de ser candidato en lugar de competir con
+esa decisión.
+

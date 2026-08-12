@@ -39,7 +39,7 @@ citas y datos volátiles pendientes de verificación), `en progreso`,
 | 3.2.1 Profesionales | completo (pendiente de revisión) | FASE-1_PROMPT-8 (TASK-85: mínimo de una matrícula provincial y una nacional para aceptar pacientes nuevos) | backend |
 | 3.2.2 Pacientes | completo (pendiente de revisión) | FASE-2_PROMPT-12 (TASK-83: punto de acceso administrativo para configurar el umbral de inactividad, con tope de doce meses aplicado también en la lectura) | backend |
 | 3.2.3 Motor de Turnos | en progreso | FASE-3_PROMPT-15 (TASK-86, corrección a TASK-37/TASK-24: `franja_extra_nuevos` nunca se leía en el cálculo de slots; se documentó como obsoleto y se eliminó el campo) | backend |
-| 3.2.4 Notificaciones y Scheduler | en progreso | FASE-4_PROMPT-2 (TASK-43, P4.2: cron de confirmación a 24h — ventana de detección 23h-25h, columna `confirmationRequestedAt` dedicada a la idempotencia en vez de reutilizar `confirmedAt`, envío vía MessagingPort stub y registro en auditoría) | backend |
+| 3.2.4 Notificaciones y Scheduler | en progreso | FASE-4_PROMPT-2 (TASK-43, P4.2: cron de confirmación a 24h — ventana de detección 23h-25h, columna `confirmationRequestedAt` dedicada a la idempotencia en vez de reutilizar `confirmedAt`, envío vía MessagingPort stub y registro en auditoría); FASE-4_PROMPT-3 (TASK-44, P4.3: cron de autocancelación a las 4h sin respuesta — motivo NO_CONFIRMATION agregado al enum de cancelación, sin extensión del plazo por fin de semana, disparo de ReassignmentPort) | backend |
 | 3.2.5 Capa conversacional y WhatsApp | sin iniciar | — | backend |
 | 3.2.6 Cerradura TTLock | sin iniciar | — | backend |
 | 3.2.7 App móvil del profesional | sin iniciar | — | movil |
