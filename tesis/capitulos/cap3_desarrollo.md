@@ -2694,3 +2694,27 @@ secuencial completo de la tabla de ofertas para resolver esa restricción.
 La corrección agregó el índice faltante, con la misma forma que sus dos
 pares ya existentes, sin ningún cambio de lógica.
 
+Una segunda auditoría, sobre la propia tabla de notificaciones descripta
+más arriba en esta sección, encontró un problema análogo al de la
+sección de Motor de Turnos: las dos columnas opcionales que enlazan una
+notificación con el turno o la solicitud de receta que la originaron
+eran claves foráneas simples, sin ningún componente que las atara al
+profesional dueño de la notificación. Nada impedía, a nivel de base de
+datos, que una notificación de un profesional terminara apuntando a un
+turno o una solicitud de otro profesional —incluso de otra
+organización—, y ninguna de las dos columnas tenía, además, el índice de
+soporte que sí tienen el resto de las claves foráneas opcionales del
+esquema. La corrección convirtió ambas en claves foráneas compuestas
+contra el mismo profesional que ya identifica a la notificación, y
+agregó los dos índices faltantes. A diferencia de los casos anteriores de
+este mismo patrón, aquí no había una columna de organización disponible
+para componer la clave —la tabla de notificaciones, como ya se explicó,
+deliberadamente no lleva una propia—, así que la clave compuesta se
+armó, en cambio, contra el profesional: exactamente el dato que el padre
+de la notificación ya determina. El borrado de un turno o una solicitud
+referenciados ahora arrastra en cascada a la notificación que los
+mencionaba, en lugar de dejarla con una referencia rota, una decisión
+tomada después de confirmar contra la batería de pruebas existente que
+ningún flujo del sistema depende de que esa referencia sobreviva al dato
+que describe.
+
