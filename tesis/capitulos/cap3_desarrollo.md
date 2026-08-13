@@ -2340,6 +2340,33 @@ base, y se actualizaron en consecuencia el punto de configuración, la
 respuesta que expone los datos del profesional y los datos de ejemplo
 sembrados para el ambiente piloto.
 
+Una quinta auditoría, de tipo multi-agente y con foco declarado en
+multi-tenancy y seguridad, encontró un hallazgo distinto a los anteriores:
+no un requisito sin implementar ni un dato huérfano, sino un chequeo de
+autorización incompleto en un endpoint ya en producción. La consulta de
+lista de espera por profesional aplicaba el chequeo de inquilino —que la
+lista pedida pertenezca a la misma organización de quien pregunta— pero no
+el chequeo de pertenencia dentro de ese inquilino, que sí aplicaban las
+otras tres operaciones del mismo servicio (alta, reordenamiento y baja de
+una entrada). La consecuencia era que un profesional autenticado podía
+pedir la lista de espera de un colega de su propia clínica y recibir el
+listado completo de pacientes en espera de ese colega, con quienes no
+tenía ningún vínculo de tratamiento —una fuga de datos de pacientes entre
+profesionales de la misma organización, distinta en naturaleza de las
+fugas entre organizaciones que el chequeo de inquilino ya impedía. La
+corrección reusó el mismo mecanismo de pertenencia que ya centralizaban
+las otras tres operaciones del servicio, en vez de introducir un segundo
+mecanismo de control de acceso —un guardián de ruta— para la misma regla
+dentro del mismo módulo: la consulta ahora recibe también la identidad de
+quien pregunta y aplica esa verificación antes de tocar la base de datos,
+de modo que un profesional ajeno recibe una respuesta de acceso denegado
+sin que la lista llegue siquiera a leerse. Se revisaron además el resto de
+los accesos de lectura a la lista de espera dentro del módulo para
+descartar el mismo hueco en otro lugar; los únicos otros puntos de lectura
+resultaron ser internos al propio motor de reasignación, disparados por
+eventos del sistema y no por un identificador de profesional que un
+llamador externo pueda elegir, por lo que no compartían el problema.
+
 ### 3.2.4 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
