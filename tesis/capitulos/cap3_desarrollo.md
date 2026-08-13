@@ -846,6 +846,28 @@ permite activar el indicador—, la verificación se incorporó a una transacci�
 con aislamiento serializable, de modo que una eliminación de matrícula
 concurrente con la activación no pueda dejar pasar a ambas.
 
+Una última revisión, ya cerrada la fase, encontró que la matrícula carecía de
+toda restricción de unicidad: nada impedía cargar dos veces la misma
+combinación de tipo y número para un mismo profesional, un dato redundante
+sin significado adicional que el mínimo introducido por la corrección
+anterior no llegaba a cubrir, por regir sobre la cantidad y no sobre el
+contenido de las matrículas. La corrección agregó una restricción de
+unicidad compuesta por profesional, tipo y número al esquema, en reemplazo
+del índice simple preexistente sobre el profesional —al que la nueva
+restricción ya sirve de cobertura, por compartir su columna inicial—, y
+tradujo la violación de esa restricción a un error de validación legible en
+los dos puntos de escritura del servicio de matrículas, en lugar de dejar
+propagarse el error interno de la base de datos. Se prefirió tratar la
+violación como un error de validación antes que como un conflicto de
+concurrencia, a diferencia del criterio ya adoptado para otras restricciones
+de unicidad del sistema: no se trata de dos escrituras que compiten por un
+recurso todavía inexistente, sino de una entrada rechazada por ser
+redundante con datos que ya existen y son perfectamente visibles para quien
+la envía. La restricción, al ser una propiedad de la base de datos y no una
+verificación de la capa de servicio, protege por igual el alta y la edición
+de una matrícula sin necesitar el aislamiento serializable que otros
+invariantes de lectura seguida de escritura de este módulo sí requirieron.
+
 ### 3.2.2 Pacientes
 
 El segundo módulo de negocio siguió el mismo criterio de apertura que el
