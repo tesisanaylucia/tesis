@@ -2393,6 +2393,27 @@ no repetirse dos veces es lo que, puesta de nuevo en su valor inicial,
 hace que cada uno vuelva a tratar la fecha nueva como si nunca la hubiera
 procesado.
 
+La misma sexta auditoría encontró, dentro del mismo módulo de lista de
+espera, un segundo hallazgo también nacido en la intersección de dos
+módulos que se implementaron por separado: la baja de una entrada de la
+lista de espera podía fallar con un error de integridad referencial sin
+manejar en vez de completarse. Cuando un candidato recibe una oferta
+automática de un turno liberado y la rechaza, o la oferta vence sin
+respuesta, el registro de esa oferta queda en la base con su estado
+final pero sigue apuntando a la entrada de lista de espera que la
+originó —solo el camino de aceptación de una oferta limpiaba esa
+referencia antes de borrar la entrada correspondiente, porque hasta
+entonces era el único lugar del sistema que borraba una entrada de lista
+de espera—. Una baja explícita posterior sobre esa misma entrada, pedida
+por quien administra la lista, chocaba entonces con la restricción de
+integridad que impide borrar un registro todavía referenciado, y el
+candidato quedaba sin ninguna vía para salir de la lista de espera. La
+corrección generaliza al camino de baja explícita el mismo mecanismo que
+ya usaba el de aceptación: limpiar esa referencia dentro de la misma
+transacción, inmediatamente antes de borrar la entrada, de modo que los
+dos únicos puntos del sistema que borran una entrada de lista de espera
+mantienen la invariante de la misma manera.
+
 ### 3.2.4 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
