@@ -2367,6 +2367,32 @@ resultaron ser internos al propio motor de reasignación, disparados por
 eventos del sistema y no por un identificador de profesional que un
 llamador externo pueda elegir, por lo que no compartían el problema.
 
+Una sexta auditoría, dirigida esta vez al ángulo motor de turnos/crons,
+encontró un hallazgo de una tercera naturaleza distinta a las cinco
+anteriores: no un requisito sin implementar, un dato huérfano ni un
+chequeo de autorización incompleto, sino dos operaciones del sistema —una
+de este módulo, la reprogramación de turnos, y dos del módulo de
+Notificaciones y Scheduler— que dejaron de coordinarse entre sí a medida
+que se implementaron por separado. La reprogramación actualiza la fecha
+de un turno sin tocar dos marcas de tiempo que sólo tienen sentido para
+los trabajos programados: cuándo se le pidió confirmación al paciente y
+cuándo se le envió el recordatorio. Mientras esas dos marcas existieron
+en aislamiento no había ningún problema visible; el defecto sólo se
+manifiesta en la intersección de ambos módulos, cuando un turno al que ya
+se le pidió confirmación —o ya se le envió recordatorio— se reprograma
+antes de que ese ciclo termine: el trabajo de auto-cancelación por falta
+de respuesta cancelaba el turno reprogramado sin haber preguntado nunca
+por la fecha nueva, y el de recordatorio se saltaba en silencio el aviso
+de la fecha nueva por creer, con la marca de la fecha vieja todavía
+puesta, que ya lo había enviado. La corrección resetea ambas marcas en el
+mismo punto de escritura que cambia la fecha del turno, dentro de la
+misma transacción, en vez de repartir la responsabilidad de mantener esa
+invariante entre el punto que reprograma y cada uno de los trabajos que la
+consumen — la propia guarda de idempotencia que cada trabajo ya usaba para
+no repetirse dos veces es lo que, puesta de nuevo en su valor inicial,
+hace que cada uno vuelva a tratar la fecha nueva como si nunca la hubiera
+procesado.
+
 ### 3.2.4 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
