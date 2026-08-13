@@ -183,7 +183,7 @@ directa el diseño de cualquier asistente conversacional construido sobre
 esta plataforma, que debe planificar con anticipación cuándo puede iniciar
 una conversación y cuándo debe esperar a que la inicie el usuario.
 
-## 2.4 Arquitectura de software: monolito modular, arquitectura hexagonal, multi-tenancy y reglas de negocio como datos
+## 2.4 Arquitectura de software: monolito modular, arquitectura hexagonal, multi-tenancy, reglas de negocio como datos y ejecución de tareas programadas
 
 Un monolito modular es un estilo arquitectónico en el que la aplicación se
 despliega como una única unidad ejecutable, pero se organiza internamente
@@ -245,3 +245,46 @@ relevante en sistemas pensados para operar sobre múltiples organizaciones
 con reglas propias, dado que evita que cada variante de negocio se traduzca
 en una rama de código distinta [CITA: patrones de configuración dirigida
 por datos / motores de reglas de negocio].
+
+Un cuarto elemento arquitectónico, complementario a los anteriores, es la
+ejecución de tareas programadas (*scheduled tasks* o *cron jobs*) dentro de
+la propia aplicación: procesos que se disparan a intervalos regulares o en
+instantes predeterminados, sin que medie una petición externa que los
+inicie, para detectar y actuar sobre estados del sistema que de otro modo
+solo cambiarían por la iniciativa de un usuario. Un trabajo programado
+típico recorre periódicamente el conjunto de registros que cumple una
+condición temporal —por ejemplo, "vencido hace más de N horas" o "dentro de
+una ventana de aviso previo a un evento futuro"— y aplica sobre cada uno la
+transición o el efecto colateral correspondiente [CITA: patrones de
+ejecución de tareas programadas en aplicaciones backend]. Esta forma de
+disparo se diferencia de la respuesta síncrona a una petición HTTP en que
+ninguna parte externa espera su resultado de manera inmediata, lo que la
+vuelve el mecanismo natural para reglas de negocio que dependen únicamente
+del paso del tiempo —una confirmación no respondida, un recordatorio previo
+a una cita, la expiración de una credencial temporal— en lugar de un acto
+deliberado de un usuario.
+
+Dos propiedades resultan centrales al diseñar un trabajo programado que
+opera sobre un conjunto de registros compartido. La primera es la
+idempotencia: dado que el mismo trabajo vuelve a ejecutarse en cada
+intervalo, debe poder distinguir un registro ya procesado de uno pendiente,
+habitualmente mediante una marca de tiempo o un estado dedicado que
+registre el efecto ya aplicado, para no repetir una acción —como el envío
+de un mensaje— sobre el mismo registro en corridas sucesivas [CITA:
+idempotencia en el procesamiento periódico de datos]. La segunda es la
+seguridad frente a la concurrencia entre el trabajo programado y una acción
+manual simultánea sobre el mismo registro: una escritura condicionada al
+estado que el trabajo espera encontrar —de forma que la actualización
+simplemente no tenga efecto si un tercero ya modificó el registro entre la
+lectura y la escritura del trabajo— evita que el resultado de una acción
+humana reciente sea sobrescrito o entre en conflicto con el de la corrida
+programada.
+
+En un sistema multi-tenant, un trabajo programado agrega una dimensión más:
+a diferencia de una petición HTTP, que trae consigo la identidad del tenant
+que la origina, un trabajo programado se dispara sin ningún contexto de
+tenant asociado, por lo que debe iterar explícitamente sobre cada
+organización y establecer, para cada una, el contexto de aislamiento bajo
+el cual va a leer y escribir datos, antes de aplicar la misma lógica de
+negocio de forma independiente por organización [CITA: ejecución de tareas
+programadas en aplicaciones multi-tenant].

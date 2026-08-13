@@ -2534,3 +2534,37 @@ ocurría antes de esta tarea, como un rechazo inmediato en lugar de
 ocupar cuatro horas de la ventana de reasignación sin ninguna
 posibilidad real de respuesta.
 
+El módulo cierra, por ahora, con un canal de notificaciones distinto de los
+anteriores: no un mensaje saliente hacia el paciente por WhatsApp, sino un
+aviso dentro de la propia aplicación, dirigido al profesional. Dos eventos
+que el sistema ya sabía reconocer —la cancelación de uno de sus turnos, ya
+sea individual o por la cancelación masiva que dispara su propia ausencia,
+y la reasignación automática de un turno liberado a un candidato de su
+lista de espera— pasaron a dejar, además de todo lo que ya registraban,
+una fila en una tabla nueva que el profesional consulta desde su propio
+listado, filtrable por leído o no leído y paginado, con operaciones para
+marcar una notificación puntual o todas las pendientes como leídas. Un
+administrador puede consultar el listado de cualquier profesional del
+mismo inquilino, pero un profesional que intenta marcar como leída una
+notificación ajena recibe un 403 explícito —una excepción puntual a la
+convención general del proyecto de responder 404 ante cualquier intento
+fuera del propio alcance, seguida aquí porque el propio documento de
+requisitos exige ese código de estado como criterio de aceptación
+verificable—.
+
+El documento de requisitos nombra dos orígenes más de notificación —una
+solicitud de receta nueva del paciente, y una alerta ante un error de la
+cerradura inteligente— que quedaron representados en el tipo de evento sin
+ningún disparador real todavía: ninguno de los dos servicios que deberían
+dispararlos existe en el código a esta altura del proyecto, uno porque
+nunca se construyó pese a que su entidad de datos ya existe desde una fase
+muy anterior, y el otro porque su propia entidad está planificada recién
+para la fase de integración con la cerradura TTLock. La tabla que sostiene
+este canal de notificaciones no lleva columna de organización propia,
+siguiendo la misma regla general del esquema ya aplicada a la matrícula o
+al horario de atención de un profesional: al tener un único padre acotado
+por inquilino —el profesional al que pertenece—, repetir esa columna
+introduciría un valor que podría llegar a discrepar del que ya tiene ese
+padre, así que cada operación se ancla primero en la comprobación de que
+el profesional en cuestión pertenece al inquilino de quien pregunta.
+

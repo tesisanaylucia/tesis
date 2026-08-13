@@ -35,6 +35,9 @@ tipo, para que las autoras completen la fuente concreta.
 | 19 | texto vigente de la Ley 25.326 y su reglamentación | 2.8 | Texto oficial de la Ley 25.326 (InfoLEG) y decreto reglamentario |
 | 20 | texto vigente de la Ley 26.529 y su reglamentación | 2.8 | Texto oficial de la Ley 26.529 (InfoLEG) y decreto reglamentario |
 | 21 | relación entre la Ley 25.326 y la Ley 26.529 aplicada a sistemas de información en salud | 2.8 | Artículo académico o dictamen sobre protección de datos de salud en Argentina |
+| 22 | patrones de ejecución de tareas programadas en aplicaciones backend | 2.4 | Artículo académico o libro de referencia sobre *scheduled tasks* / *cron jobs* en arquitecturas backend |
+| 23 | idempotencia en el procesamiento periódico de datos | 2.4 | Artículo académico o libro sobre idempotencia y procesamiento por lotes/periódico |
+| 24 | ejecución de tareas programadas en aplicaciones multi-tenant | 2.4 | Artículo académico o whitepaper sobre scheduling en sistemas multi-tenant |
 
 ## Datos volátiles marcados `[VERIFICAR: ...]` (no son citas bibliográficas)
 
