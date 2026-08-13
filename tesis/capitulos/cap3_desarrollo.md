@@ -2568,3 +2568,16 @@ introduciría un valor que podría llegar a discrepar del que ya tiene ese
 padre, así que cada operación se ancla primero en la comprobación de que
 el profesional en cuestión pertenece al inquilino de quien pregunta.
 
+Una auditoría de la base de datos viva, posterior a la incorporación de la
+tabla de ofertas de lista de espera descripta más arriba en esta sección,
+detectó que dos de sus tres claves foráneas compuestas acotadas por
+inquilino tenían el índice de soporte correspondiente, pero la tercera —la
+que apunta, de forma opcional, hacia la entrada de lista de espera de
+origen— no. PostgreSQL no indexa automáticamente las columnas de una clave
+foránea, así que cada operación de escritura sobre una entrada de lista de
+espera —en particular, la que el propio trabajo programado de vencimiento
+de ofertas dispara al aceptar o expirar una— forzaba un recorrido
+secuencial completo de la tabla de ofertas para resolver esa restricción.
+La corrección agregó el índice faltante, con la misma forma que sus dos
+pares ya existentes, sin ningún cambio de lógica.
+
