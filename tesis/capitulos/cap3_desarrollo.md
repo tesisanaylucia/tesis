@@ -264,6 +264,23 @@ una sola marca temporal vuelve imposible de violar. La migración correspondient
 preserva el estado previo, convirtiendo cada fila inactiva en una marca temporal para
 no perder ninguna baja registrada.
 
+Una auditoría posterior de la base de datos encontró una invariante del
+modelo `User` que ninguna restricción expresaba: una cuenta con rol
+profesional debe estar siempre vinculada a un profesional, y una cuenta con
+rol administrador o de sistema nunca debe estarlo, pero la columna que
+sostiene ese vínculo era simplemente anulable. La omisión no tenía todavía
+consecuencia observable, dado que la gestión de usuarios no cuenta aún con
+ningún endpoint de creación o edición más allá del sembrado inicial, pero
+dejarla pendiente para el momento en que ese endpoint se construyera
+arriesgaba perderla de vista. Se agregó una restricción `CHECK` que expresa
+la invariante con una sola condición de igualdad, válida para los tres
+roles a la vez: el rol profesional exige el vínculo, y los otros dos lo
+prohíben. Al aplicar la restricción se descubrió que la propia rutina de
+sembrado la infringía al retirar del roster a un profesional dado de baja,
+pues desvinculaba la cuenta asociada sin degradar su rol; se corrigió
+eliminando la cuenta en ese caso, ya que ningún otro rol corresponde a un
+inicio de sesión cuyo profesional fue eliminado.
+
 ### 3.2.1 Profesionales
 
 El primer módulo de negocio construido sobre las fundaciones fue el de

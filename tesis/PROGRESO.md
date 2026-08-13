@@ -35,7 +35,7 @@ citas y datos volátiles pendientes de verificación), `en progreso`,
 | Subsección | Estado | Último prompt | Componente |
 |---|---|---|---|
 | 3.1 Arquitectura general | sin iniciar | — | — |
-| 3.2.0 Fundaciones | en progreso | FASE-2_PROMPT-10 (refinamiento del modelo de datos: baja lógica como marca temporal común a profesionales y pacientes, documentación de la redundancia deliberada del puntero de auditoría) | backend |
+| 3.2.0 Fundaciones | en progreso | FASE-0_PROMPT-7 (TASK-93, corrección a TASK-16/TASK-72: restricción `CHECK` que ata `professionalId` al rol en `User`, con corrección de un efecto colateral en la reconciliación del seed) | backend |
 | 3.2.1 Profesionales | completo (pendiente de revisión) | FASE-1_PROMPT-9 (TASK-92, corrección a TASK-21/22: restricción de unicidad `(professionalId, type, number)` sobre `License`, en reemplazo del índice simple por profesional, con traducción de la violación a un 400 legible en alta y edición) | backend |
 | 3.2.2 Pacientes | completo (pendiente de revisión) | FASE-2_PROMPT-12 (TASK-83: punto de acceso administrativo para configurar el umbral de inactividad, con tope de doce meses aplicado también en la lectura) | backend |
 | 3.2.3 Motor de Turnos | en progreso | FASE-3_PROMPT-15 (TASK-86, corrección a TASK-37/TASK-24: `franja_extra_nuevos` nunca se leía en el cálculo de slots; se documentó como obsoleto y se eliminó el campo) | backend |
