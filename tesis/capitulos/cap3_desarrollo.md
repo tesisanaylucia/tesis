@@ -2454,6 +2454,29 @@ corrección reemplaza los dos timestamps por el nombre del único campo
 que este flujo modifica, siguiendo el mismo patrón ya usado en el camino
 hermano, sin alterar la lógica de reprogramación en sí.
 
+La misma séptima auditoría, en su ángulo de reuso y simplificación,
+encontró un hallazgo relacionado en cuatro puntos distintos del motor de
+turnos y de la lista de espera: el aviso de que un turno fue
+reprogramado, el pedido de confirmación previo a un reagendado
+unilateral, el aviso de cancelación masiva por ausencia de un profesional
+y la oferta de un turno liberado a un candidato de la lista de espera
+armaban su texto a mano, en inglés, en vez de pasar por el motor de
+plantillas de mensajes construido en la fase de notificaciones y
+scheduler (sección 3.2.4). Dos de las cinco claves de ese motor —el aviso
+de cancelación y la oferta de lista de espera— ya existían con su texto
+en español y ya eran configurables por organización, pero sin ningún
+punto del código que realmente las usara: sólo los dos trabajos
+programados de confirmación y recordatorio pasaban efectivamente por el
+motor, un desvío que sólo se nota leyendo en paralelo ambos módulos. El
+efecto concreto es que una clínica que personalizara el texto de
+cualquiera de estos cuatro mensajes en su configuración no veía ningún
+cambio, y el texto en inglés incumplía además la convención del proyecto
+de que el contenido cara al paciente debe estar en español. La corrección
+agrega al catálogo las dos claves que todavía no existían —el aviso de
+reprogramación y su pedido de confirmación previo— y hace que los cuatro
+puntos rendericen su texto a través del motor antes de enviarlo, en vez
+de construirlo por su cuenta.
+
 ### 3.2.4 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
