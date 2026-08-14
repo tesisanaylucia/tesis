@@ -2756,3 +2756,28 @@ que la lectura posterior del turno asociado —que solo alimenta la
 continuación del recorrido de la lista de espera, no la mutación que se
 audita— quedó deliberadamente fuera de ella.
 
+Una cuarta auditoría, dirigida específicamente a los dos trabajos
+programados que envían mensajes por WhatsApp con base en una ventana de
+detección temporal —el de solicitud de confirmación y el de recordatorio,
+ambos descriptos más arriba en esta sección—, encontró que los dos
+compartían la misma falla de orden de operaciones: el mensaje se enviaba
+antes de aplicar la comprobación de idempotencia que registra el intento, y
+ninguna de las dos comprobaciones volvía a verificar el estado del turno en
+el momento mismo del envío, solo la consulta inicial que había armado el
+lote de candidatos algunos segundos antes. Un turno que el paciente
+confirmaba, o que se cancelaba, en el intervalo entre esa consulta inicial y
+el procesamiento de su turno dentro del lote, igual recibía el mensaje —una
+comunicación contradictoria para quien la lee, generada por una ventana de
+carrera que la comprobación de idempotencia, tal como estaba escrita, no
+alcanzaba a cerrar. La corrección invirtió el orden en ambos trabajos: la
+escritura guardada que marca el intento —ahora también condicionada al
+estado vigente del turno, no solo a que el campo de idempotencia siguiera
+vacío— se ejecuta primero, junto con su entrada de auditoría dentro de la
+misma transacción, y el mensaje solo se renderiza y se envía si esa
+escritura efectivamente afectó una fila. La contrapartida de este orden,
+dejada asentada junto al código, es que un envío que fallara después de ese
+punto ya quedaría registrado como intentado y no se reintentaría en la
+corrida siguiente —un costo menor y necesario para cerrar la ventana de
+carrera que motivó la corrección, frente al riesgo de volver a mensajear un
+turno que ya había cambiado de estado.
+
