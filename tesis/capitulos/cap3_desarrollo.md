@@ -1692,6 +1692,23 @@ aplicado en esta misma subsección y, más adelante, en la de notificaciones y
 trabajos programados, para el resto de las escrituras acompañadas de
 auditoría.
 
+Una tercera auditoría, esta vez orientada a las convenciones de nomenclatura
+del propio proyecto, encontró que el punto de acceso administrativo del
+umbral de inactividad rompía una regla explícita: el idioma de una ruta HTTP
+en este sistema se decide por la superficie a la que pertenece, y toda ruta
+que empieza con el segmento de configuración administrativa se mantiene en
+español de punta a punta, salvo esta, cuyo segmento final había quedado en
+inglés desde que se escribió. La inconsistencia no afectaba ningún
+comportamiento observable —la validación, el cálculo del corte de fecha y el
+resto de la lógica no se vieron tocados— pero sí el patrón del que una
+persona que se incorpore al proyecto infiere la convención, ya que una única
+excepción sin justificar debilita la regla para todas las rutas que la
+respetan. La corrección reemplazó el segmento final por su forma en español,
+sin abrir un período de convivencia entre ambas rutas: el propio relevamiento
+que originó la tarea constató que el único consumidor de la ruta anterior era
+la suite de pruebas del propio proyecto, de modo que mantener un alias en
+inglés habría reintroducido la misma inconsistencia que se buscaba eliminar.
+
 ### 3.2.3 Motor de Turnos
 
 El módulo de Turnos comenzó, igual que Profesionales y Pacientes antes que él, por
