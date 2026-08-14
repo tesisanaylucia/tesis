@@ -2434,6 +2434,26 @@ transacción, inmediatamente antes de borrar la entrada, de modo que los
 dos únicos puntos del sistema que borran una entrada de lista de espera
 mantienen la invariante de la misma manera.
 
+Una séptima auditoría, dirigida esta vez al ángulo de las convenciones
+documentadas en el propio archivo de reglas del repositorio, encontró un
+hallazgo distinto a los anteriores: no una omisión funcional ni una
+integridad referencial rota, sino una traza de auditoría que registraba
+más de lo que la propia regla del proyecto permite. La entrada que deja
+la reprogramación de un turno anotaba, en su campo de detalle, los dos
+timestamps involucrados —el horario anterior y el nuevo—, mientras que la
+regla del repositorio es explícita en que ese campo debe nombrar qué
+cambió, nunca el valor que tomó. El camino hermano de escritura de
+campos sueltos del turno, usado por ejemplo al registrar el pago o la
+orden de derivación, ya seguía la regla correctamente, de modo que la
+reprogramación resultó ser el único punto de mutación de turnos que se
+había apartado de ella. El motivo por el que importa: una exportación de
+cumplimiento pensada para responder "qué cambió en este turno" terminaba
+revelando, de paso, el propio dato personal —el horario de agenda del
+paciente— que la regla existe para mantener fuera de esa columna. La
+corrección reemplaza los dos timestamps por el nombre del único campo
+que este flujo modifica, siguiendo el mismo patrón ya usado en el camino
+hermano, sin alterar la lógica de reprogramación en sí.
+
 ### 3.2.4 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
