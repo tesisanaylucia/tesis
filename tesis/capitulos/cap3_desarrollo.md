@@ -1672,6 +1672,26 @@ inquilino sobre el que se escribe nunca es un parámetro de la solicitud sino
 que se deriva del token de quien administra, de modo que el aislamiento entre
 organizaciones no requirió una comprobación adicional a la del rol.
 
+Una auditoría posterior, esta vez sobre la propia escritura que la tarea
+anterior había agregado, encontró que el cambio de umbral y la entrada de
+auditoría que lo describe no compartían ninguna garantía de todo-o-nada: el
+método de configuración por inquilino escribía el nuevo valor sobre el
+cliente de base de datos directo, y la entrada de auditoría se generaba
+recién después, sin ningún `$transaction` que envolviera a ambas. Una falla
+del proceso, o de la propia escritura de auditoría, justo después de una
+configuración ya confirmada dejaba el umbral de inactividad de la
+organización modificado sin ningún rastro de quién lo había cambiado ni
+cuándo, un vacío de cumplimiento significativo porque esa regla reclasifica
+pacientes y dispara los recordatorios de actualización de contacto que una
+fase posterior construye sobre ella. La corrección adaptó el método de
+configuración por inquilino para aceptar, además del cliente por defecto, el
+handle de una transacción en curso, el mismo mecanismo que el registro de
+auditoría ya ofrecía desde su creación, y envolvió la escritura del umbral y
+su entrada de auditoría en una misma transacción, siguiendo el patrón ya
+aplicado en esta misma subsección y, más adelante, en la de notificaciones y
+trabajos programados, para el resto de las escrituras acompañadas de
+auditoría.
+
 ### 3.2.3 Motor de Turnos
 
 El módulo de Turnos comenzó, igual que Profesionales y Pacientes antes que él, por
