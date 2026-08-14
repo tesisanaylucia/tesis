@@ -2975,3 +2975,22 @@ del conjunto: la corrida sigue siendo independiente por organización, y una
 organización sin usuario SYSTEM se sigue omitiendo con una advertencia en
 lugar de abortar el resto del proceso.
 
+Una sexta auditoría, también orientada a reuso, señaló que el trabajo de
+solicitud de confirmación y el de recordatorio declaraban, cada uno por su
+cuenta, la misma función auxiliar de formateo de hora en reloj de pared que
+antepone un cero a un número de un solo dígito. Al revisar el estado real
+del código sobre una copia recién actualizada del repositorio —la misma
+precaución ya aplicada frente a un hallazgo de auditoría similar en el
+Motor de Turnos— esa duplicación resultó ya no existir: una corrección
+anterior, hecha al mover los mensajes de reagendado, cancelación por
+ausencia y oferta de lista de espera a pasar por el motor de plantillas de
+notificaciones, ya había extraído ambas funciones de formateo —y su único
+auxiliar de relleno de cero— a ese archivo compartido de formateo de
+notificaciones, como efecto colateral de un trabajo con un objetivo
+distinto. La auditoría que originó esta observación se había ejecutado, con
+toda probabilidad, sobre una copia del repositorio anterior a esa
+corrección. No hubo entonces código que modificar: se documentó la
+verificación y se cerró la observación dejando constancia de su causa más
+probable, para que una auditoría posterior no vuelva a levantar la misma
+alarma sin antes refrescar su copia del repositorio.
+
