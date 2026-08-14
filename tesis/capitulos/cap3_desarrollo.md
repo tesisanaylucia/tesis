@@ -2505,6 +2505,46 @@ un entorno productivo, de modo que sin esa migración la regla sólo
 seguiría existiendo como constante de código para cualquier organización
 creada antes del cambio.
 
+Una novena auditoría, dirigida esta vez al ángulo de completitud de
+módulos respecto del anteproyecto, encontró un hallazgo de una naturaleza
+distinta a las ocho anteriores: no un requisito sin implementar, un dato
+huérfano, un chequeo de autorización incompleto ni una regla de negocio
+hardcodeada, sino un cambio de esquema ya fusionado a la rama principal
+sin ningún ticket ni entrada de bitácora que lo respaldara —un hueco de
+trazabilidad documental, no funcional—. Una revisión previa del propio
+esquema, la que dio origen a las restricciones de integridad reflejadas
+más arriba en esta sección, había agregado tres restricciones `CHECK`
+—sobre la duración de un turno, el rango de fechas de una ausencia y la
+posición en la lista de espera— y había eliminado tres índices de una
+sola columna sobre el identificador de organización que resultaban
+redundantes frente a un índice compuesto ya existente en cada uno de los
+tres modelos afectados. El cambio en sí es correcto y ya estaba verificado
+contra la base de datos viva desde su fusión; lo que faltaba era
+exclusivamente su documentación. La corrección consistió en escribir esa
+documentación en forma retroactiva —tanto la entrada de bitácora
+correspondiente como esta misma ampliación del capítulo—, sin modificar,
+rehacer ni revertir el cambio de esquema en sí.
+
+La misma novena auditoría examinó además por qué el mecanismo de captura
+automática de la tesis, pensado precisamente para que un caso así no
+ocurra, no lo había detectado. El hook de cierre de sesión que actúa como
+red de seguridad de ese mecanismo compara dos marcas de tiempo: la del
+último cambio de código y la de la entrada de bitácora más reciente del
+componente, bloqueando el cierre cuando la primera es posterior a la
+segunda. Esa comparación detecta que la bitácora quedó desactualizada en
+términos de reloj, pero no si la entrada más reciente efectivamente
+describe el cambio de código puntual que se acaba de hacer —dos
+propiedades que el hook trataba, hasta este hallazgo, como si fueran la
+misma—. En el caso del cambio de esquema, esto significó que el hueco dejó
+de ser detectable en cuanto se escribió cualquier otra entrada de
+bitácora del backend posterior a esa fusión, sin que el hook llegara nunca
+a verificar que el cambio de esquema específicamente hubiera quedado
+documentado. Corregir esa comparación para que evalúe cobertura en lugar
+de sólo recencia es un cambio de diseño no trivial, ajeno al alcance
+puramente documental de esta corrección, por lo que quedó registrado como
+un ticket de seguimiento propio en lugar de resolverse dentro de esta
+misma tarea.
+
 ### 3.2.4 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
