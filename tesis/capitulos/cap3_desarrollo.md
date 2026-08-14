@@ -2581,6 +2581,24 @@ batcheada de todos los vínculos de la lista en una sola consulta y una
 única aplicación de la regla sobre el conjunto, sin alterar el criterio
 de ranking en sí ni el resultado que produce para una lista dada.
 
+La misma décima auditoría encontró, en el mismo módulo, un segundo
+hallazgo de eficiencia: la operación que reordena manualmente la lista de
+espera de un profesional escribía la nueva posición de cada entrada una
+por una, esperando la respuesta de la base de datos antes de emitir la
+siguiente escritura, aun cuando esas N escrituras son independientes
+entre sí —cada una toca una fila distinta identificada por su propio
+identificador— y toda la operación corre dentro de una única transacción
+con aislamiento serializable. Con el tope máximo de doscientas entradas
+que ya regía este endpoint, un reordenamiento completo podía llegar a
+serializar hasta doscientos viajes de red sucesivos en vez de solaparlos,
+extendiendo sin necesidad cuánto tiempo permanece abierta esa transacción
+—y con ella, el conjunto de bloqueos que retiene— en un endpoint
+administrativo de uso frecuente. La corrección lanza las N escrituras en
+paralelo dentro de la misma transacción en vez de esperarlas una por una,
+sin alterar ni el resultado final del reordenamiento ni el manejo de un
+conflicto de serialización, que sigue resolviéndose exactamente igual que
+antes.
+
 ### 3.2.4 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
