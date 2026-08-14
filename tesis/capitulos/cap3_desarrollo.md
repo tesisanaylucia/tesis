@@ -2562,6 +2562,25 @@ puramente documental de esta corrección, por lo que quedó registrado como
 un ticket de seguimiento propio en lugar de resolverse dentro de esta
 misma tarea.
 
+Una décima auditoría, dirigida esta vez al ángulo de reuso,
+simplificación y eficiencia, encontró un hallazgo de rendimiento en el
+algoritmo de ranking de la lista de espera: por cada candidato de una
+lista, el código consultaba por separado su vínculo con el profesional y
+aplicaba sobre él, de a uno, la regla que actualiza el tipo de paciente
+según su inactividad —pese a que esa regla ya estaba escrita para recibir
+muchos vínculos de una sola vez y aplicarse sobre el conjunto completo
+con una única escritura. El efecto práctico es que rankear una lista de
+N candidatos costaba un número de consultas secuenciales proporcional a
+N, y ese ranking se repite en cada paso del recorrido automático de la
+lista —la cancelación original de un turno, y de nuevo cada vez que un
+candidato rechaza una oferta o esta expira sin respuesta—, de modo que el
+costo total de una reasignación con varios candidatos rechazando en
+cadena crecía más rápido de lo necesario. La corrección reemplaza la
+consulta y la aplicación de la regla por candidato con una carga
+batcheada de todos los vínculos de la lista en una sola consulta y una
+única aplicación de la regla sobre el conjunto, sin alterar el criterio
+de ranking en sí ni el resultado que produce para una lista dada.
+
 ### 3.2.4 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
