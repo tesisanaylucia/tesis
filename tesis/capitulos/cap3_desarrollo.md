@@ -2477,6 +2477,34 @@ reprogramación y su pedido de confirmación previo— y hace que los cuatro
 puntos rendericen su texto a través del motor antes de enviarlo, en vez
 de construirlo por su cuenta.
 
+Una octava auditoría, dirigida al ángulo de auditoría, fechas y reglas de
+negocio tratadas como dato, encontró un hallazgo del mismo tipo que ya
+había motivado la ventana mínima de cancelación configurable por
+organización: la edad mínima de la modalidad "solo mayores", con la que
+un profesional puede restringir la aceptación de pacientes nuevos a
+adultos, estaba fijada como una constante de dieciocho años dentro del
+código, comparada directamente contra la edad calculada del paciente en
+dos puntos —la reserva de un turno y la revalidación de esas mismas
+reglas al reprogramar el turno de un paciente nuevo—. A diferencia de un
+tope anti-abuso, se trata de una regla de negocio real, la mayoría de
+edad vigente, que un tenant white-label o uno radicado en una
+jurisdicción con otra mayoría de edad no podía ajustar sin modificar el
+código y volver a desplegar. La ventana mínima de cancelación, que vive
+en el mismo archivo, ya resolvía exactamente este mismo problema para
+otra regla: leer el valor desde la configuración de la organización, con
+una constante como resguardo si la fila todavía no existe. La corrección
+replica ese mecanismo sin variaciones para la edad mínima —misma clave
+de configuración por organización, misma validación de que el valor
+configurado sea un entero positivo antes de confiar en él, mismo
+resguardo de dieciocho años— y reemplaza ambas comparaciones
+hardcodeadas por una consulta a esa configuración. Una migración de
+datos siembra el valor vigente para toda organización ya existente, con
+el mismo razonamiento que la migración equivalente de la ventana de
+cancelación: los datos de siembra del entorno de desarrollo no corren en
+un entorno productivo, de modo que sin esa migración la regla sólo
+seguiría existiendo como constante de código para cualquier organización
+creada antes del cambio.
+
 ### 3.2.4 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
