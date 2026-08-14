@@ -2718,3 +2718,21 @@ tomada después de confirmar contra la batería de pruebas existente que
 ningún flujo del sistema depende de que esa referencia sobreviva al dato
 que describe.
 
+Una tercera auditoría, esta vez centrada en el punto donde se resuelve el
+destino de una oferta de turno de lista de espera —aceptada, rechazada o
+vencida por el propio trabajo programado de vencimiento descripto más
+arriba—, encontró que el cambio de estado de la oferta se escribía sobre
+el cliente de base de datos directo, sin transacción, y que la entrada de
+auditoría correspondiente se generaba varias líneas después, sin
+compartir ninguna garantía de todo-o-nada con esa escritura. Una
+auditoría que fallara justo después de una confirmación ya aplicada
+dejaba una oferta resuelta sin ningún rastro en la traza de
+cumplimiento, el mismo riesgo que ya se había resuelto, en una fase
+anterior de esta misma sección, para el trabajo programado de
+autocancelación por falta de confirmación. La corrección aplicó
+exactamente ese patrón ya existente: la escritura del estado y su
+entrada de auditoría pasaron a compartir una misma transacción, mientras
+que la lectura posterior del turno asociado —que solo alimenta la
+continuación del recorrido de la lista de espera, no la mutación que se
+audita— quedó deliberadamente fuera de ella.
+
