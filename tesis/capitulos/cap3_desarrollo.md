@@ -2928,3 +2928,32 @@ corrida siguiente —un costo menor y necesario para cerrar la ventana de
 carrera que motivó la corrección, frente al riesgo de volver a mensajear un
 turno que ya había cambiado de estado.
 
+Una quinta auditoría, esta vez orientada a reuso y simplificación en lugar
+de a un defecto de comportamiento, observó que los cinco trabajos
+programados de esta sección —el de solicitud de confirmación, el de
+autocancelación por falta de respuesta, el de recordatorio, el de
+vencimiento de ofertas de lista de espera y el de autocompletado semanal de
+turnos vencidos, descripto en la sección del motor de turnos— repetían,
+cada uno de forma independiente, el mismo bloque inicial: consultar todas
+las organizaciones, recorrerlas abriendo el contexto de inquilino de cada
+una, resolver el usuario SYSTEM correspondiente y omitir con una advertencia
+la organización que no tuviera ninguno. Cada archivo llevaba, además, una
+copia del mismo comentario que explica por qué el callback pasado al
+contexto de inquilino debe ser asincrónico y esperar su propio trabajo, bajo
+riesgo de perder ese contexto apenas el bucle que lo invoca retorna de
+forma síncrona. La duplicación no era solo repetición de código: cualquier
+mejora futura a esa forma común —agrupar en una sola consulta la
+resolución del usuario SYSTEM, sumar métricas por organización— habría
+exigido editar los cinco archivos de manera idéntica, con el riesgo
+adicional de que un sexto trabajo programado copiara uno de los cinco en
+lugar de reutilizar un mecanismo compartido. La corrección extrajo ese
+bloque a una única función, ubicada junto al resto de las utilidades
+transversales del backend con la misma forma que ya tenía la que envuelve
+una transacción serializable —una función asincrónica que recibe sus
+dependencias como parámetros explícitos, no un servicio resuelto por
+inyección—, y migró los cinco trabajos programados a usarla, sin modificar
+la lógica de negocio particular de ninguno ni el comportamiento observable
+del conjunto: la corrida sigue siendo independiente por organización, y una
+organización sin usuario SYSTEM se sigue omitiendo con una advertencia en
+lugar de abortar el resto del proceso.
+
