@@ -200,8 +200,10 @@ título de la sección 2.4 se amplió para nombrar el tema nuevo.
 
 - Componente: backend.
 - Branch de referencia: `feature/TASK-76-notification-model-and-endpoint`
-  (creada desde `origin/main` fresco). Pusheada a `origin`, no fusionada
-  aún.
+  (creada desde `origin/main` fresco). Fusionada a `main` el 2026-08-12
+  (commit `3a961b2`); corrección posterior en TASK-90 (FK compuesta de
+  `Notification.appointmentId`/`.prescriptionRequestId`, ya también en
+  `main`).
 - Ticket: TASK-76 (P7.b — Backend: modelo Notificacion y endpoint
   GET /notificaciones para la app del profesional). Numerado bajo la fase
   de Jira 7 (App móvil del profesional) pero de componente backend puro; se
