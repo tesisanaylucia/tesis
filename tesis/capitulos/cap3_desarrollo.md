@@ -3235,3 +3235,59 @@ verificación y se cerró la observación dejando constancia de su causa más
 probable, para que una auditoría posterior no vuelva a levantar la misma
 alarma sin antes refrescar su copia del repositorio.
 
+Una séptima auditoría, esta vez de cotejo entre el código y el documento de
+requisitos, señaló una omisión en el contenido del propio mensaje: el
+documento pide que la solicitud de confirmación informe al paciente cuánto
+dura la sesión, y ni la plantilla base declaraba un marcador de posición
+para la duración ni el trabajo programado que la renderiza seleccionaba esa
+columna del turno, pese a estar disponible en la misma consulta que ya
+recuperaba los datos del paciente y del profesional. La corrección agregó
+el marcador al texto base y el dato a la consulta, con dos decisiones de
+redacción del mensaje que conviene dejar asentadas. La primera es que el
+marcador transporta únicamente el número y la palabra "minutos" quedó en el
+texto de la plantilla, la misma separación que ya seguían el marcador de
+fecha y hora y el de hora sola, cuyos formateadores compartidos devuelven un
+valor y nunca la redacción que lo rodea: un parámetro es un valor, y las
+palabras que lo acompañan son justamente lo que cada organización
+personaliza bajo el requisito de marca blanca. La segunda es que el
+marcador se nombró incluyendo su unidad, porque quien edita ese texto desde
+la configuración de la organización es personal administrativo de la
+clínica y el nombre del marcador es lo único que declara qué significa el
+número. La duración se leyó, además, de la columna del propio turno y no de
+la configuración vigente del profesional: un turno conserva la duración con
+la que fue reservado —una decisión ya tomada en el Motor de Turnos para que
+un cambio posterior de configuración no reescriba turnos ya agendados—, de
+modo que la configuración actual no es necesariamente lo que dura ese turno
+en particular.
+
+El alcance real de la corrección resultó, sin embargo, mayor que el que
+enunciaba la observación. Como el texto base de cada plantilla se siembra
+en la configuración de cada organización mediante una migración de datos
+—la decisión, descripta más arriba en esta misma sección, de que la fila
+por defecto exista desde el principio en lugar de aparecer recién cuando
+alguien la personaliza—, y como el motor de plantillas prefiere siempre la
+fila del inquilino por sobre el texto base del sistema, modificar la
+constante del código habría dejado el mensaje exactamente igual en
+cualquier base de datos ya migrada, incluida la del piloto: el criterio de
+aceptación se habría cumplido únicamente en las pruebas. Se agregó
+entonces una segunda migración de datos que actualiza esa fila, con la
+misma condición no destructiva que rige a todas las migraciones de siembra
+del proyecto —sólo se reescribe la fila que conserva íntegro el texto base
+anterior, es decir, aquella que la clínica nunca editó—, aceptando como
+contrapartida que una organización que sí hubiera personalizado su
+plantilla siga sin mencionar la duración, porque corregir su redacción es
+una decisión de la clínica y no de una migración.
+
+La verificación del criterio de aceptación se hizo sobre el texto final
+entregado al puerto de mensajería y no sobre los parámetros pasados a un
+doble de prueba del motor de plantillas. El motivo es que un trabajo
+programado que enviara un parámetro con un nombre distinto del que la
+plantilla declara produce el error de parámetro faltante descripto al
+comienzo de esta sección, que el manejo tolerante por turno del propio
+trabajo convierte en una advertencia en el registro y descarta para seguir
+con el resto del lote: el paciente no recibiría nada y una prueba con el
+motor simulado no lo advertiría. La prueba agregada arma por eso el motor
+de plantillas real, con únicamente la configuración por inquilino simulada,
+y verifica que el mensaje efectivamente enviado contiene la duración de la
+sesión.
+
