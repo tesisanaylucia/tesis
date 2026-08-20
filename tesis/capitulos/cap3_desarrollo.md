@@ -2979,6 +2979,30 @@ va a modificar no es configuración sino un parámetro muerto —una columna, un
 campo del punto de acceso de configuración, un campo de la respuesta y las
 pruebas de todos ellos— sosteniendo una decisión ya tomada.
 
+Una revisión posterior de las cuatro rutas de administración del calendario
+de feriados expuso que la restricción al rol administrador, razonable para
+las tres escrituras, alcanzaba también a la lectura sin ninguna excepción, y
+que ninguna otra ruta del sistema exponía el calendario a un profesional: ni
+la disponibilidad ni el listado general de turnos devuelven una marca de "día
+feriado". El documento de requisitos prevé que la futura vista de agenda de
+la aplicación móvil del profesional —todavía no implementada— marque los
+feriados con color, precondición que sin una ruta de lectura accesible no
+podía cumplirse. La corrección amplía el rol de la lectura mediante un
+decorador de roles declarado sobre el propio método, que se resuelve antes
+que el del controlador; las tres escrituras conservan el rol administrador
+exclusivo. Al tratarse de una anulación puramente de autorización, no hizo
+falta tocar el servicio: el listado ya resolvía sus resultados a través del
+cliente de Prisma acotado por inquilino, de modo que un profesional, igual
+que un administrador, sólo alcanza a ver los feriados de su propia
+organización. La alternativa de incorporar el feriado a la respuesta de
+disponibilidad o de turnos, que el propio requerimiento contemplaba, se
+descartó por acoplar una preocupación administrativa a dos contratos ya
+probados con otro propósito; también se descartó exponer el listado bajo una
+ruta nueva sin el prefijo administrativo, por no haber en el sistema
+precedente de un mismo recurso bajo dos rutas según el rol que lo consulta,
+cuando el patrón ya establecido para un recurso que ambos roles comparten es
+una única ruta con el rol declarado por operación.
+
 ### 3.2.4 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
