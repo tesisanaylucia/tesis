@@ -1764,10 +1764,13 @@ atención del profesional para los días de la semana del rango, genera
 franjas desde el inicio hasta el fin de cada bloque con paso igual a la
 duración de consulta configurada, y descarta las que caen en un feriado del
 inquilino, en una ausencia del profesional o en un turno ya reservado o
-confirmado. El paso de generación es deliberadamente la duración de la
-consulta y no la cadencia de apertura de franjas —una configuración distinta
-del profesional, pensada para un espaciado posterior de franjas— porque así
-lo especifica el documento de requisitos para este cálculo puntual. La
+confirmado. El paso de generación se fijó en esta etapa en la duración de la
+consulta y no en la cadencia de apertura de franjas —una configuración
+distinta del profesional, agregada al modelo poco antes y todavía sin
+consumidor—, en el entendido de que así lo especificaba el documento de
+requisitos para este cálculo puntual; una revisión posterior, descrita al
+cierre de esta subsección, encontró que esa lectura no era correcta y que la
+cadencia debía ser el paso. La
 ausencia de una duración de consulta configurada se trata como un pedido mal
 formado y no como una lista vacía, para distinguir "no hay franjas hoy" de
 "falta configurar la agenda del profesional", dato que el cliente necesita
@@ -2689,6 +2692,87 @@ la respuesta debe poder indicar que un horario está retenido, para que la
 aplicación lo distinga de una hora libre cualquiera: un profesional que no
 puede diferenciarlos podría suponer que el bot se lo quitará, que es
 precisamente la incertidumbre que la ventana existe para evitar.
+
+La misma auditoría encontró un defecto de naturaleza distinta a los
+anteriores, no en una regla mal aplicada sino en una configuración que nunca
+llegaba a aplicarse. La fuente de verdad distingue dos parámetros de agenda
+del profesional y los ilustra con dos ejemplos que nombran ambos: atención
+cada una hora con sesiones de cuarenta y cinco minutos, o cada treinta
+minutos con sesiones de veinte. Cada ejemplo separa cada cuánto se abre un
+horario ofrecible —la cadencia— de cuánto dura la sesión que lo ocupa. La
+etapa de configuración del profesional ya había separado ambos datos en el
+modelo, tras detectar que el diseño inicial los colapsaba en uno solo, y la
+había dejado registrada como configuración destinada a la futura generación
+de agenda. Esa generación se construyó después, y avanzó siempre con la
+duración de la sesión: la cadencia quedó como un dato que el profesional
+podía guardar y que no cambiaba nada de lo que veía.
+
+La corrección hace de la cadencia el paso entre inicios de turno
+consecutivos, dejando la duración de la consulta como longitud de la sesión y
+como valor informado en cada franja —es el dato que el asistente comunica al
+paciente al confirmar, de modo que la cadencia no debía filtrarse a la
+respuesta—. La condición de corte de cada bloque de atención sigue exigiendo
+que entre la sesión completa y no la cadencia, de manera que un bloque de
+09:00 a 17:00 con cadencia de sesenta minutos y sesiones de cuarenta y cinco
+ofrece hasta las 16:00 y no un inicio a las 17:00. Un profesional sin cadencia
+configurada conserva exactamente la agenda anterior, porque el paso vuelve a
+caer en la duración.
+
+Lo que hizo que el defecto sobreviviera no fue una fórmula equivocada sino
+una duplicación. Existían dos recorridos que producían instantes de turno
+—el de la agenda ordinaria y el de la grilla sobre la que se apoya la regla
+de doble franja para paciente nuevo—, cada uno con su propia copia del paso,
+de modo que la cadencia tenía que ser incorporada dos veces y no lo fue en
+ninguna. La corrección los unificó en un único recorrido que devuelve la
+grilla completa de instantes por día: la agenda ordinaria es esa grilla menos
+lo que ya está ocupado, y la regla de doble franja necesita la grilla sin esa
+resta, porque debe distinguir "el primer turno del día está tomado" —caso en
+que no ofrece nada— de "ese turno no existe en la grilla", distinción que la
+lista de franjas libres no puede hacer, ya que ambos casos se le presentan
+igual, como ausencia. La lectura e interpretación del par de configuraciones
+se concentró además en un módulo compartido que consumen tanto el servicio de
+disponibilidad como el de turnos, de modo que los instantes que la agenda
+ofrece y los que una reserva ocupa provienen de una única definición.
+
+Esa segunda propiedad no es un refinamiento sino una condición de corrección,
+y lo ilustra el punto donde el defecto tenía su consecuencia más seria. La
+reserva de una primera sesión validaba el instante de inicio contra la grilla
+de paciente nuevo y luego derivaba el segundo turno del par sumando la
+duración de la sesión. Con cadencia de sesenta y sesiones de cuarenta y
+cinco, eso habría escrito el segundo turno en un instante que la agenda no
+ofrece y que ninguna consulta de disponibilidad vuelve a mostrar, solapado
+además con el horario siguiente, que sí continúa ofreciéndose porque la
+verificación de ocupación compara instantes exactos y no intervalos. Es
+decir, hacer efectiva la cadencia sin corregir también ese punto habría
+abierto un camino de doble reserva que antes no existía —no porque el cálculo
+fuera correcto, sino porque la cadencia no llegaba a producir la
+discrepancia—. Por el mismo motivo el emparejamiento de la regla de doble
+franja pasó a exigir que los dos turnos disten una cadencia y no una
+duración: la fuente de verdad pide "dos turnos consecutivos de su agenda", y
+en una agenda con cadencia el turno siguiente empieza una cadencia después.
+
+Hacer efectiva la configuración obligó por último a acotarla. Mientras la
+cadencia no se usaba, el par no podía contradecirse en ningún efecto
+observable; al usarse, una cadencia menor que la duración de la sesión abre
+el turno siguiente mientras la sesión anterior todavía transcurre, y la
+agenda pasa a ofrecer dos horarios solapados que —de nuevo por comparar
+instantes exactos— son ambos reservables. Se agregó entonces la invariante de
+que la cadencia no sea menor que la duración, con valores iguales admitidos,
+que son la agenda consecutiva de siempre. La comprobación se ubicó en el
+servicio y no en la validación del cuerpo del pedido porque abarca el par tal
+como quedará almacenado: la actualización de configuración es parcial y puede
+traer una sola de las dos columnas, de modo que una validación que sólo
+mirara el pedido se satisfaría enviando las dos mitades por separado. Eso la
+convierte en una invariante de lectura y escritura, y se ejecuta dentro de la
+transacción serializable que ese punto de acceso ya abría por otra
+comprobación, para que dos actualizaciones concurrentes —una fijando la
+duración, otra la cadencia— no puedan leer cada una un estado que permite su
+propia escritura y dejar entre ambas un par que ninguna habría aceptado. Se
+descartó expresarla como restricción de integridad en la base de datos:
+ambas columnas son anulables hasta que la configuración las fija, la mitad no
+configurada no puede contradecir a la otra, y una comprobación de tabla
+debería tolerar los estados intermedios sin poder distinguir después cuál de
+las dos mitades el operador acaba de mover.
 
 ### 3.2.4 Notificaciones y Scheduler
 
