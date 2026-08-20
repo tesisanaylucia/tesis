@@ -1766,7 +1766,7 @@ que originó la tarea constató que el único consumidor de la ruta anterior era
 la suite de pruebas del propio proyecto, de modo que mantener un alias en
 inglés habría reintroducido la misma inconsistencia que se buscaba eliminar.
 
-Una última auditoría sobre el importador de pacientes preexistentes encontró
+Una auditoría más sobre el importador de pacientes preexistentes encontró
 que la lectura de un archivo separado por comas no contemplaba más que una
 codificación. El lector decodifica todo `.csv` como UTF-8 sin ningún
 resguardo, y una planilla histórica exportada por un Excel en español como
@@ -1792,6 +1792,27 @@ los rechazos del importador— en lugar de reintentarse con otra codificación
 supuesta, opción descartada porque reintentar siempre produce algún
 resultado, correcto o no, y arriesgaría introducir un nombre plausible pero
 equivocado si el archivo estuviera en una tercera codificación distinta.
+
+La misma auditoría señaló, sobre el mismo módulo, un punto que no calificó
+como defecto sino como pregunta abierta: desde la tarea que incorporó la
+prioridad del vínculo paciente-profesional, su edición admite tanto al
+profesional del vínculo como a cualquier ADMIN, comportamiento documentado y
+deliberado desde su origen —la misma comprobación que ya regía la lectura—
+pero sobre el que no constaba si coincidía con la intención del documento de
+requisitos, que atribuye la carga de la prioridad específicamente al
+profesional. Antes de decidir, se releyó la fuente de verdad: el documento de
+Especificación de Requisitos vigente enumera, sin mencionar ninguna vía
+administrativa, que la prioridad "la define y carga el profesional desde la
+app". La verificación resolvió la pregunta a favor de la exclusividad, y la
+corrección restringió únicamente la escritura —dejando la lectura
+administrativa intacta, ya que el texto verificado no dice nada sobre quién
+puede leer la prioridad, a diferencia de la frase que rige las observaciones
+de uso interno y que sí nombra explícitamente la lectura— reemplazando, sólo
+en ese punto de acceso, la comprobación permisiva por la estricta que la
+tarea de las observaciones ya había introducido para un caso hermano dentro
+del mismo controlador. La corrección no agregó código de autorización nuevo:
+reutilizó el par de comprobaciones existente, cambiando únicamente cuál de
+las dos protege la escritura de la prioridad.
 
 ### 3.2.3 Motor de Turnos
 
