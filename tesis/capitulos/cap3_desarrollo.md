@@ -281,6 +281,63 @@ pues desvinculaba la cuenta asociada sin degradar su rol; se corrigió
 eliminando la cuenta en ese caso, ya que ningún otro rol corresponde a un
 inicio de sesión cuyo profesional fue eliminado.
 
+Una auditoría de código posterior, centrada esta vez en contrastar el
+código de notificaciones, capa de IA, seguridad y aspectos legales contra
+el documento de requisitos, señaló que el servicio de usuarios era la
+única pieza del sistema que seguía consultando la base a través del
+cliente de Prisma sin extender, en lugar de hacerlo a través de la
+extensión de acotamiento por tenant descripta al comienzo de esta sección.
+No existía una fuga real en ese momento —el único método que leía varios
+usuarios a la vez recibía el identificador de la organización de su único
+invocador, pasado a mano y correcto—, pero esa corrección dependía
+enteramente de que ese invocador siguiera pasándolo bien, exactamente la
+disciplina manual que la extensión se había construido para no requerir.
+Un método nuevo que se agregara a ese servicio sin recordar filtrar por
+organización habría expuesto usuarios y contraseñas cifradas de otras
+organizaciones sin que ningún mecanismo lo impidiera, ni en tiempo de
+desarrollo ni en tiempo de ejecución. Se migró el servicio al cliente
+acotado por tenant, y de paso se retiró el parámetro de identificador de
+organización que el único método de lectura múltiple recibía: una vez que
+el filtro lo aplica la extensión a partir del contexto de la solicitud,
+sostener además un parámetro explícito con el mismo propósito no aporta
+nada y reabre la posibilidad de que ambos valores diverjan, que es
+precisamente el riesgo que la migración buscaba cerrar.
+
+Dos de los tres métodos del servicio, sin embargo, no pudieron migrarse:
+ambos se invocan desde el inicio de sesión, antes de que exista un token
+válido y, por lo tanto, antes de que haya una organización en el contexto
+de la solicitud que la extensión pueda leer —intentarlo simplemente habría
+provocado que la propia extensión rechazara la consulta—. Se los dejó
+deliberadamente sobre el cliente sin extender, documentando en el código
+por qué cada uno es seguro sin un filtro manual de todos modos: la
+búsqueda por correo electrónico, porque esa columna es única en toda la
+base y no solo dentro de una organización, de modo que no hay ninguna fila
+de otra organización con la que pueda confundirse; y la verificación de si
+el profesional vinculado a una cuenta sigue activo, porque el identificador
+de profesional es una clave primaria única en toda la base y una clave
+foránea compuesta ya vigente garantiza, a nivel de esquema, que el
+profesional vinculado a una cuenta solo puede pertenecer a la misma
+organización que esa cuenta. Esta excepción quedó incorporada al documento
+de convenciones del repositorio como una categoría propia, distinta de las
+que ya reconocía para el diseño de un modelo (pertenencia directa, hijo de
+un padre acotado por tenant, vínculo entre dos padres acotados por tenant):
+un método de servicio, no un modelo, puede justificar por sí mismo evitar
+el cliente acotado, pero solo con el mismo tipo de argumento —qué otra
+propiedad de la consulta ya limita el resultado a una única organización—
+dejado por escrito.
+
+La prueba de que un método nuevo hipotético queda automáticamente acotado
+sin depender de que quien lo escriba recuerde filtrar ya existía, de forma
+genérica para todo modelo con identificador de organización, en la
+suite de extremo a extremo de la extensión de acotamiento: una consulta sin
+ningún filtro explícito de organización, emitida a través del cliente
+acotado, solo devuelve filas de la organización activa en el contexto. Se
+sumó cobertura unitaria propia del servicio de usuarios, que verifica cuál
+de los dos clientes usa cada método —y en particular que el método migrado
+no recibe ni necesita ningún argumento de organización—, dejando la prueba
+de aislamiento real, contra una base de datos de verdad, a la suite ya
+existente.
+
 ### 3.2.1 Profesionales
 
 El primer módulo de negocio construido sobre las fundaciones fue el de
