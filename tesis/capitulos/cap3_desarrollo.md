@@ -2840,6 +2840,61 @@ agendados sobre una fecha declarada feriado con posterioridad, que
 permanecen en la agenda. Esa carencia del alta de feriados queda registrada
 como observación pendiente.
 
+La misma revisión expuso una segunda omisión en el motor de reasignación,
+esta vez en el orden mismo en que recorre la lista de espera. La
+especificación del algoritmo fijó dos criterios de prioridad: la que el
+profesional carga a mano sobre su relación con un paciente determinado, y el
+tipo de vínculo, que distingue al paciente recurrente del nuevo y que el
+sistema deriva por sí mismo de las consultas registradas. La implementación
+cargaba ambos datos —la estructura que representa a un candidato del ranking
+declara los dos campos y la consulta los resuelve juntos—, pero el comparador
+que ordena a los candidatos leía únicamente la prioridad explícita y, tras
+ella, el orden de llegada a la lista. El tipo se escribía y no se volvía a
+leer en ninguna parte. Como la prioridad explícita es opcional y se asigna a
+mano, el caso ordinario es que ningún candidato la tenga, y en ese caso la
+lista quedaba ordenada sólo por orden de llegada: un paciente recurrente de
+años no obtenía ventaja alguna sobre uno nuevo que se hubiera anotado antes.
+El criterio quedaba incumplido sin que nada fallara.
+
+La corrección incorpora el tipo como escalón intermedio del comparador, entre
+la prioridad explícita y el orden de llegada. Esa ubicación no es arbitraria:
+la prioridad que el profesional asigna es una decisión deliberada sobre un
+paciente concreto, mientras que el tipo es una condición general que el
+sistema infiere, de modo que anteponer el tipo subordinaría lo específico a lo
+automático y dejaría a un paciente nuevo marcado como urgente detrás de
+cualquier recurrente sin prioridad. El orden resultante queda entonces en
+cuatro escalones —prioridad, tipo, orden de llegada y fecha de creación del
+registro—, cada uno desempatando al anterior, y se expresó como una función
+pura con nombre, extraída del ordenamiento, junto a la que ya traducía la
+prioridad a un peso comparable.
+
+Un aspecto de esta corrección merece constancia por no ser evidente en el
+punto donde se compara: el tipo que el comparador lee no es el almacenado en
+la relación sino el vigente. Los vínculos de los candidatos se cargan por la
+vía que aplica antes la regla de inactividad descripta en el módulo de
+Pacientes, de manera que un vínculo registrado como recurrente cuya última
+consulta es anterior al umbral del inquilino ya fue degradado a nuevo cuando
+llega al ranking. Sin ese orden, la corrección habría otorgado ventaja en la
+lista de espera a pacientes que el resto del sistema ya considera nuevos, es
+decir, habría hecho que el motor de reasignación contradijera a las demás
+lecturas del mismo dato.
+
+Corresponde señalar, por último, cómo se resolvió una ambigüedad de la
+formulación original del requerimiento, que enunciaba la regla como que los
+pacientes recurrentes tienen prioridad sobre los nuevos *si el profesional así
+lo configuró*. El sistema no contaba con ningún parámetro que activara o
+desactivara esa preferencia, de modo que la condición no correspondía a nada
+existente y admitía dos lecturas: agregar la configuración faltante, o
+entender la regla como incondicional. Consultada la dueña del producto, se
+confirmó lo segundo. Se descartó por lo tanto agregar la columna, en una
+decisión que conviene distinguir del criterio general adoptado en este
+trabajo, según el cual las reglas de negocio se expresan como datos
+configurables antes que como condicionales fijos en el código: ese criterio
+rige sobre aquello que la clínica efectivamente decide, y una opción que nadie
+va a modificar no es configuración sino un parámetro muerto —una columna, un
+campo del punto de acceso de configuración, un campo de la respuesta y las
+pruebas de todos ellos— sosteniendo una decisión ya tomada.
+
 ### 3.2.4 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
