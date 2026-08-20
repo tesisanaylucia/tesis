@@ -2599,6 +2599,97 @@ sin alterar ni el resultado final del reordenamiento ni el manejo de un
 conflicto de serialización, que sigue resolviéndose exactamente igual que
 antes.
 
+Una undécima auditoría, esta vez de contraste entre el comportamiento
+implementado y el texto del SRS, encontró que la retención de veinticuatro
+horas de la modalidad manual de reasignación —descrita más arriba— tenía un
+alcance mayor que el que la regla admite. El SRS define esa ventana como una
+restricción sobre el bot: ante una cancelación, la franja *queda libre en la
+agenda del profesional para que la asigne al paciente que desee*, y lo único
+que la ventana impide es que el bot la ofrezca durante ese lapso, dándole
+tiempo al profesional de asignarla por su cuenta. La implementación, en
+cambio, registraba de la retención únicamente su vencimiento, y el predicado
+que decide si un instante está ocupado —compartido, deliberadamente, entre el
+listado de disponibilidad y los caminos de escritura, para que ambos no
+puedan discrepar sobre qué significa "libre"— trataba cualquier turno
+cancelado bajo retención vigente como ocupado sin distinguir quién estaba
+preguntando. El resultado invertía el propósito de la regla: la ventana
+pensada para reservarle la franja al profesional era exactamente lo que le
+impedía usarla, y el rechazo se le presentaba además afirmando que ya tenía
+un turno reservado o confirmado en un horario que su agenda mostraba libre.
+
+El hallazgo señala un límite del principio de predicado compartido tal como
+estaba aplicado. Compartir la definición de "ocupado" entre lectura y
+escritura es correcto y sigue siéndolo —es lo que impide ofrecer un horario
+que la reserva luego rechazaría—, pero presupone que "ocupado" es una
+propiedad del instante y no de la relación entre el instante y quien
+pregunta. Una retención no es una propiedad del instante en ese sentido: es
+una restricción dirigida a un actor concreto. El diseño anterior no podía
+expresar esa dirección porque la retención se representaba con un único dato,
+su vencimiento, que dice cuánto dura pero no a quién alcanza.
+
+La corrección introduce ese segundo dato. Cada retención pasa a registrar
+también su motivo —reasignación manual, u oferta automática en curso—, y el
+predicado compartido pasa a recibir de quién proviene la consulta: la oferta
+del bot, o una asignación directa en la que el profesional o un administrativo
+nombran ellos mismos el instante. La oferta del bot sigue viendo ocultas
+ambas clases de retención, que es lo que la regla del SRS exige. La
+asignación directa queda bloqueada únicamente por una retención de oferta
+automática, y la razón por la que esa sí bloquea es simétrica a la anterior:
+un recorrido automático en curso tiene un candidato que puede estar aceptando
+en ese mismo momento, y una reserva manual por encima dejaría a dos pacientes
+creyendo tener el mismo horario. Es decir, la distinción no consiste en que
+las retenciones dejen de bloquear escrituras, sino en que cada una bloquee a
+quien fue creada para bloquear.
+
+El parámetro que identifica al llamador se declaró obligatorio en lugar de
+asumir un valor por omisión. Un valor por defecto habría reintroducido en
+silencio el mismo defecto: un camino de código que no declara de qué lado de
+la distinción está la obtendría mal sin que nada lo señalara. La consecuencia
+práctica es que, cuando la capa conversacional reserve turnos en nombre del
+paciente sobre la agenda que el propio bot ofrece, ese camino deberá
+declararse como oferta del bot y no como asignación directa, o el chatbot
+ocuparía justamente el horario que el SRS reserva para la mano del
+profesional.
+
+Los dos datos que describen una retención —vencimiento y motivo— quedan
+además atados entre sí por una restricción de integridad en la base de datos,
+que obliga a que se escriban y se limpien juntos. La elección no es
+cosmética: una fila con vencimiento y sin motivo dejaría de emparejar con el
+filtro por motivo, y el turno que el bot no debe ofrecer volvería a ser
+ofrecible —es decir, la inconsistencia de datos se manifestaría exactamente
+como el defecto que esta corrección elimina. Se prefirió declarar el motivo
+como dato propio de la retención antes que derivarlo de la modalidad
+configurada en el profesional, porque esa modalidad es su configuración
+actual y puede cambiar después de colocada una retención: lo que hace falta
+registrar no es cómo está configurado el profesional hoy, sino qué originó la
+retención que está en vigor.
+
+La corrección cierra el defecto en el backend, pero su consecuencia alcanza
+a una capa que todavía no se construyó, y conviene dejarla asentada aquí
+porque se decidió junto con ella. La ruta que publica los horarios libres de
+un profesional responde hoy con el acceso del bot para todos los llamadores
+por igual, de modo que un horario retenido queda oculto también para la
+aplicación del profesional. Eso es correcto para el chatbot y no lo es para
+la aplicación, por el mismo motivo que originó esta corrección: la ventana de
+veinticuatro horas existe para darle tiempo al profesional de asignar ese
+horario a mano, y un selector que no se lo muestra anula la ventana
+exactamente como lo hacía el rechazo, una capa más arriba. Como la reserva
+directa ya funciona, el horario queda reservable pero no listado —el peor de
+los dos estados, porque sólo lo aprovecha quien ya sabe que debe escribir la
+hora—. Queda registrado, entonces, como requisito de la fase de la aplicación
+móvil y no como alternativa a evaluar: el selector debe ofrecer ese horario,
+pidiéndolo con el acceso de asignación directa que el servicio ya sabe
+responder. Ese requisito arrastra dos condiciones que no son preferencias.
+La primera es que la variante debe negarse al rol bajo el cual corren los
+procesos automáticos y correrá el chatbot, porque concedérsela le devolvería
+justamente el horario que el SRS reserva para la mano del profesional —y la
+ruta está hoy abierta a cualquier usuario autenticado de la organización, de
+modo que la restricción hay que agregarla y no se hereda—. La segunda es que
+la respuesta debe poder indicar que un horario está retenido, para que la
+aplicación lo distinga de una hora libre cualquiera: un profesional que no
+puede diferenciarlos podría suponer que el bot se lo quitará, que es
+precisamente la incertidumbre que la ventana existe para evitar.
+
 ### 3.2.4 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
