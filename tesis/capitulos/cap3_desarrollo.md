@@ -2774,6 +2774,72 @@ configurada no puede contradecir a la otra, y una comprobación de tabla
 debería tolerar los estados intermedios sin poder distinguir después cuál de
 las dos mitades el operador acaba de mover.
 
+Una última revisión del motor de turnos expuso que la regla de feriados, que
+el servicio de disponibilidad aplica tanto al construir la agenda ofrecible
+como al verificar un instante puntual, no alcanzaba al motor de reasignación
+de la lista de espera. La causa es la misma decisión de arquitectura que se
+describió al presentar ese motor: para evitar un ciclo de importación con el
+módulo de turnos, el motor escribe directamente sobre la tabla de turnos, y
+por esa vía quedaba fuera de la única verificación que aplica la regla. El
+escenario que ello habilita se apoya en un segundo hecho del sistema, a
+saber, que dar de alta un feriado no cancela los turnos ya reservados en esa
+fecha: un turno agendado con anticipación puede quedar sobre una fecha
+declarada feriado después y, si el paciente original lo cancela, la
+reasignación automática podía asignárselo a un integrante de la lista de
+espera sobre un día en que la clínica no atiende.
+
+La corrección introduce la verificación en dos momentos distintos, con
+respuestas deliberadamente distintas. En el paso de ofrecimiento la
+condición se comprueba una vez por recorrido, antes de contactar a nadie:
+que la fecha sea feriado es una propiedad de la franja liberada y no del
+candidato, idéntica para toda la lista, de modo que comprobarla por candidato
+sólo multiplicaría las consultas y llevaría a ofrecer sucesivamente a cada
+integrante un turno que la clínica no podría honrar, reteniendo entretanto
+una franja inutilizable durante toda la ventana de respuesta de cada uno.
+Verificada la condición, si la fecha es feriado no se registra oferta alguna
+y la retención sobre la franja se libera de inmediato. En el paso de reserva
+la condición se comprueba nuevamente, esta vez dentro de la misma transacción
+que crea el turno, porque el alta del feriado puede ocurrir mientras una
+oferta ya emitida espera respuesta; allí la operación falla de forma
+explícita y libera la retención, en lugar de reservar en silencio.
+
+Dos aspectos de esa corrección merecen constancia por no ser evidentes. El
+primero es que no se reutilizó la verificación de franja libre, que es la que
+aplican las demás rutas de escritura y la que la formulación literal del
+requerimiento sugería emplear. Esa verificación considera ocupada una franja
+tanto cuando existe un turno vivo sobre ella como cuando existe un turno
+cancelado bajo una retención de reasignación vigente; ahora bien, el turno
+que el motor está reasignando es exactamente eso, una fila cancelada que el
+propio motor retuvo al iniciar el recorrido, de modo que la comprobación lo
+haría colisionar consigo mismo y devolvería "ocupada" de manera determinista.
+Emplearla habría inutilizado por completo la reasignación automática en lugar
+de corregir el defecto. Se extrajo entonces la mitad pertinente —la consulta
+al calendario de feriados— a un método propio del servicio de
+disponibilidad, que la verificación de franja libre pasa a consumir
+internamente; se descartó replicar la consulta en el módulo de lista de
+espera, pese a estar admitido, porque una tercera definición de la misma
+regla es precisamente la divergencia que el criterio de definición única
+busca evitar.
+
+El segundo aspecto concierne al tratamiento de la falla en el paso de
+reserva. Consignar la oferta como rechazada y avanzar al siguiente candidato
+resultaría cómodo, pero introduciría en el registro de auditoría un rechazo
+que el paciente nunca expresó, cuando en rigor aceptó y fue la franja la que
+dejó de existir; dado que la trazabilidad exigida por la Ley 25.326 se apoya
+en que ese registro refleje lo ocurrido, la oferta permanece aceptada y la
+falla se propaga como excepción. Por análoga razón, la liberación de la
+retención se acotó mediante un tipo de error específico a la causa de
+feriado: un cambio de estado concurrente indica que la franja pertenece a
+quien la tomó, y liberarla allí la expondría además a la agenda del
+asistente, mientras que un fallo de escritura del registro de auditoría no
+debe quedar enmascarado.
+
+Cabe señalar que esta corrección impide que la reasignación agregue turnos
+nuevos sobre un feriado, pero no altera la situación de los turnos ya
+agendados sobre una fecha declarada feriado con posterioridad, que
+permanecen en la agenda. Esa carencia del alta de feriados queda registrada
+como observación pendiente.
+
 ### 3.2.4 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
