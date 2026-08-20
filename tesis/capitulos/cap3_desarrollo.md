@@ -1709,6 +1709,33 @@ que originó la tarea constató que el único consumidor de la ruta anterior era
 la suite de pruebas del propio proyecto, de modo que mantener un alias en
 inglés habría reintroducido la misma inconsistencia que se buscaba eliminar.
 
+Una última auditoría sobre el importador de pacientes preexistentes encontró
+que la lectura de un archivo separado por comas no contemplaba más que una
+codificación. El lector decodifica todo `.csv` como UTF-8 sin ningún
+resguardo, y una planilla histórica exportada por un Excel en español como
+"CSV (delimitado por comas)" —el caso de uso exacto que esta funcionalidad
+existe para migrar— se escribe en Windows-1252/ANSI, donde una letra
+acentuada o una ñ ocupa un único byte que no es UTF-8 válido. Ante ese byte,
+la decodificación no falla: lo reescribe en silencio como el carácter de
+reemplazo Unicode, de modo que "José María" se convertía en "Jos� Mar�a" y la
+fila se persistía igual, porque ese texto corrompido sigue siendo una cadena
+no vacía y ningún validador de forma puede distinguirlo de un nombre real. La
+corrección agregó, en la capa de lectura, un chequeo posterior a la
+decodificación de cada fila —el mínimo que la propia auditoría proponía como
+aceptable frente a una detección de codificación en sentido estricto, que
+tendría que adivinar el origen de una información que la decodificación ya
+perdió— y evalúa cualquier celda de la fila, no sólo las que el importador de
+pacientes reconoce: si una columna que el importador ignora aparece
+corrompida, el resto de la fila se decodificó con el mismo problema, aunque
+"nombre" y "apellido" no tuvieran acentos en ese registro puntual y por eso no
+lo delataran por sí solos. La validación de la fila corta antes de construir
+el registro cuando esa marca está presente, de modo que la fila se rechaza
+—nombrada en el informe, con la fila y el archivo señalados como el resto de
+los rechazos del importador— en lugar de reintentarse con otra codificación
+supuesta, opción descartada porque reintentar siempre produce algún
+resultado, correcto o no, y arriesgaría introducir un nombre plausible pero
+equivocado si el archivo estuviera en una tercera codificación distinta.
+
 ### 3.2.3 Motor de Turnos
 
 El módulo de Turnos comenzó, igual que Profesionales y Pacientes antes que él, por
