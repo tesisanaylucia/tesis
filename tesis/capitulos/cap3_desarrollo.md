@@ -3691,3 +3691,118 @@ cuándo notificar— que no le corresponde a esta tarea, sino a la que
 construya el flujo conversacional completo alrededor de esta herramienta
 en una fase posterior.
 
+La tercera tarea del módulo (P5.3, TASK-48) cerró el círculo entre el
+adaptador de IA y el catálogo de herramientas: el orquestador de
+conversación, la pieza que efectivamente conduce un turno del diálogo con
+el paciente. `OrquestadorService.procesar(sessionId, mensajeEntrante,
+organizationId)` recupera el historial de la sesión en curso, arma la
+instrucción de sistema del inquilino, llama a `AIPort` con el catálogo
+completo de herramientas de la tarea anterior y, si la respuesta trae una o
+más solicitudes de uso de herramienta, las ejecuta, agrega cada resultado
+al historial como el bloque `tool_result` correspondiente y vuelve a llamar
+al modelo — repitiendo el ciclo hasta que la respuesta trae únicamente
+texto, o hasta un tope de diez vueltas pensado como resguardo contra un
+modelo que entrara en un ciclo de invocación sin fin. Lo primero que hace
+`procesar` es abrir el contexto de inquilino para todo el turno con el
+identificador de organización recibido por parámetro, exactamente como un
+interceptor HTTP lo abre una vez por petición: es la promesa que el propio
+comentario de la resolución del actor SYSTEM, escrito durante la tarea
+anterior, ya dejaba anotada como pendiente para "el futuro orquestador", y
+con ese contexto abierto tanto la configuración del inquilino como cada
+herramienta que el modelo invoque durante el resto del turno leen a través
+del cliente de Prisma ya acotado, sin necesitar un identificador de
+organización propio en ningún punto intermedio.
+
+El historial de la conversación se resuelve con el mismo criterio que ya
+gobierna otra regla dependiente del tiempo en el sistema: sin un trabajo
+programado dedicado. `ConversationSessionStore` guarda el historial en un
+mapa en memoria, de alcance de proceso —suficiente para el despliegue de
+instancia única previsto para el piloto, ya que el stack del proyecto no
+declara ninguna infraestructura de caché además de Postgres—, y cada
+lectura compara la marca de tiempo de la última actividad de esa sesión
+contra el umbral de inactividad vigente del inquilino, descartando la
+entrada ahí mismo si ya venció en lugar de esperar a que un trabajo
+programado la recorra: la misma lógica de "la lectura es lo que nota que el
+plazo venció" que ya aplica la regla de inactividad de pacientes del Módulo
+2. El umbral, que el ticket da como "configurable, valor por defecto 30
+minutos" sin precisar si es una configuración global o por inquilino, se
+resolvió como dato por inquilino en `OrganizationConfig`, siguiendo la
+misma instrucción general que ya rige el resto de los plazos configurables
+del sistema. El identificador de sesión en sí —celular del paciente más
+identificador de organización, para que dos inquilinos nunca compartan una
+entrada del mapa aunque un paciente les escriba a ambos desde el mismo
+número— queda como una función pura exportada (`buildSessionId`),
+lista para que el futuro webhook de WhatsApp (P5.8, TASK-53) la use al
+recibir cada mensaje entrante, sin que el orquestador necesite conocer ni
+imponer ese formato.
+
+El system prompt sigue exactamente el mismo mecanismo de personalización
+por inquilino que ya resolvieron las plantillas de mensajes de
+notificación: un texto base en el propio módulo, sustituible por el que el
+inquilino haya guardado en su configuración, con el nombre de la
+organización interpolado sobre el resultado mediante el mismo marcador
+`{placeholder}` que esas plantillas ya usan para `{patientName}` o
+`{professionalName}`. El texto base declara el rol del bot ("gestiona
+únicamente turnos médicos de la organización"), el tono esperado —claro,
+cordial, breve, sin jerga médica— y los límites explícitos que el propio
+ticket pide como refuerzo de los guardrails de una fase posterior: nunca
+revelar observaciones del profesional, nunca informar montos de copago,
+nunca derivar a un operador humano, y redirigir directamente al profesional
+ante una emergencia. Las dos funciones puras que resuelven la sustitución
+de `{placeholder}` se trasladaron a una ubicación compartida bajo
+`src/common/`, en lugar de duplicarlas dentro del módulo del chatbot: eran,
+literalmente, el mismo mecanismo que ya vivía junto a las plantillas de
+notificación de P4.1, así que el módulo de notificaciones pasó a importarlas
+desde ahí en vez de conservar su propia copia. Tanto el umbral de
+inactividad como el texto base del system prompt se sembraron, además, en
+una migración de datos para toda organización ya existente —no sólo en el
+seed de desarrollo—, con la misma razón ya documentada para la regla de
+inactividad de pacientes y para las propias plantillas de notificación: sin
+esa fila sembrada, el requisito de "configurable por inquilino" existiría
+únicamente como una constante del código, invisible para cualquier
+organización productiva.
+
+Cuatro lugares distintos del código —la regla de inactividad de pacientes,
+dos umbrales del Motor de Turnos y la ventana del recordatorio de turno—
+repetían ya, con comentarios casi idénticos entre sí, la misma
+comprobación: aceptar un valor de configuración sólo si es un número entero
+positivo, y devolver una constante de reserva en cualquier otro caso. El
+umbral de inactividad de sesión de esta tarea necesitaba exactamente esa
+misma lógica, así que en lugar de sumar una quinta copia se generalizó en
+un método nuevo del servicio de configuración por inquilino
+(`getPositiveInteger`), dejando los cuatro sitios preexistentes sin tocar
+—una migración de esos cuatro al método nuevo excede el alcance de esta
+tarea— pero disponible ya para cualquier regla futura con esa misma forma.
+
+Un detalle de implementación no evidente hasta que se lo pisó por accidente
+fue el manejo del arreglo de mensajes dentro del ciclo. Cada vuelta agrega
+el turno del modelo y el resultado de cada herramienta al mismo arreglo en
+construcción; pasar ese arreglo por referencia a `AIPort.processMessage` en
+cada llamada funciona con el adaptador real —que serializa el pedido antes
+de devolver el control—, pero deja una dependencia implícita sobre el
+comportamiento de cualquier adaptador futuro que retuviera esa misma
+referencia más allá de la llamada. Se optó por pasarle una copia superficial
+del arreglo en cada vuelta en lugar del arreglo mutable en construcción, un
+costo mínimo que evita esa clase de error para cualquier implementación de
+`AIPort` que llegue a existir, no sólo la actual. Agotadas las diez vueltas
+sin que el modelo devuelva una respuesta de sólo texto, el orquestador
+lanza un error de dominio (`ToolCallLimitExceededError`) en lugar de armar
+algún texto de disculpa por su cuenta —este servicio no está todavía detrás
+de ningún controlador propio, así que qué llega a leer el paciente ante ese
+error queda para cuando el webhook de WhatsApp exista— y deliberadamente no
+guarda el historial de ese turno atascado, de modo que el próximo mensaje
+del paciente arranca desde el último turno que sí produjo una respuesta, en
+vez de repetir el ciclo trabado.
+
+Con el orquestador ya implementado, el Módulo 5 completa el trayecto entre
+el adaptador de IA (P5.1) y el catálogo de herramientas (P5.2): las tres
+piezas encajan sin que ninguna de las dos anteriores haya necesitado
+cambios de contrato para esta tarea, incluido el parámetro `system` que
+P5.1 ya había agregado previendo exactamente este uso. Los guardrails que
+refuerzan los límites del system prompt sobre la respuesta final del modelo
+(P5.4, TASK-49), los flujos de negocio concretos por sobre este ciclo
+genérico de herramientas (P5.5, TASK-50) y la integración real con
+WhatsApp —incluido quién construye el identificador de sesión y quién
+atrapa el error de tope de iteraciones— (P5.8, TASK-53) quedan para fases
+posteriores del mismo módulo.
+
