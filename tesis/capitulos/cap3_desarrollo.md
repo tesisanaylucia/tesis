@@ -3806,3 +3806,51 @@ WhatsApp —incluido quién construye el identificador de sesión y quién
 atrapa el error de tope de iteraciones— (P5.8, TASK-53) quedan para fases
 posteriores del mismo módulo.
 
+La cuarta tarea del módulo (P5.4, TASK-49) agregó la capa de guardrails que
+el system prompt de la tarea anterior ya anticipaba como refuerzo, no como
+reemplazo: un conjunto de reglas determinísticas —basadas en palabras clave
+y expresiones regulares, no en una segunda llamada al modelo— que revisa la
+conversación en dos puntos concretos del ciclo del orquestador. El primero
+es el mensaje entrante del paciente, revisado antes de que el orquestador
+llame al modelo o a cualquier herramienta: si contiene una palabra clave de
+urgencia médica o de crisis de salud mental —el foco explícitamente
+psiquiátrico/psicológico de la clínica hizo que este segundo grupo se
+incorporara junto al de urgencias médicas generales—, el turno se corta ahí
+mismo con el mensaje fijo de fuera de alcance, sin gastar ninguna llamada al
+modelo sobre una respuesta que ya está decidida de antemano. El segundo
+punto es la respuesta final en texto plano del modelo, revisada antes de
+que se guarde en el historial de la sesión o se devuelva al paciente, contra
+cuatro reglas independientes entre sí: ninguna mención del campo
+observaciones del profesional, ningún monto de copago, ninguna derivación a
+un operador humano, y ningún dato —nombre, turno, DNI— de un paciente ajeno
+a la conversación en curso. Cualquiera de las cuatro reemplaza la respuesta
+completa por uno de tres textos canónicos, nunca sólo el fragmento que la
+violó, y ese texto reemplazado —nunca el original generado por el
+modelo— es el que efectivamente queda guardado en el historial, para que un
+turno bloqueado no reingrese como contexto en el que el propio modelo
+"cree" haber dicho ya lo que el guardrail impidió decir.
+
+A diferencia del umbral de inactividad de sesión y del texto del system
+prompt (P5.3), las cinco reglas de esta tarea no son configurables por
+inquilino: el propio ticket lo exige de forma explícita —los guardrails
+son globales y ninguna configuración de organización puede desactivarlos—,
+una excepción deliberada al criterio general del proyecto de tratar las
+reglas de negocio como datos por inquilino en lugar de como constantes de
+código, justificada de la misma forma que ya lo están los topes anti-abuso
+del sistema: esto es un piso de seguridad, no una preferencia configurable
+de la clínica. La regla sobre datos de otros pacientes resultó la más
+limitada de las cinco por esa misma razón de diseño: el ticket la describe
+en términos de "el profesional de la sesión activa", pero identificar a qué
+paciente y a qué profesional pertenece la conversación en curso es
+información que todavía no llega hasta esta capa —el guardrail, por
+diseño del propio ticket, sólo analiza el texto ya generado, no los
+parámetros con los que el modelo invocó cada herramienta durante el
+turno—, y resolverla en esta tarea habría significado adelantar una
+decisión de diseño reservada a los flujos de negocio de la fase siguiente
+(P5.5, TASK-50). La regla se implementó en su lugar como dos resguardos de
+texto deterministas y explícitamente heurísticos: un número suelto de siete
+u ocho dígitos, la forma de un documento de identidad argentino, y una
+referencia en tercera persona a un paciente nombrado ("el turno de
+\<Nombre\>"), dado que una respuesta legítima siempre se dirige al paciente
+en segunda persona.
+
