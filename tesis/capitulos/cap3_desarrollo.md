@@ -3602,3 +3602,92 @@ esta tarea; ambos consumen el puerto tal como quedó definido aquí, sin
 necesitar cambios adicionales de contrato para lo que se conoce hasta el
 momento.
 
+La segunda tarea del módulo (P5.2, TASK-47) definió el catálogo completo de
+herramientas que el modelo puede invocar —disponibilidad, reserva,
+confirmación, reprogramación, cancelación y consulta de turnos; búsqueda o
+alta de paciente; registro y verificación de consentimiento; solicitud de
+receta; y preguntas frecuentes—, cada una como un adaptador delgado sobre
+un servicio de dominio ya construido en los módulos de Turnos y Pacientes,
+sin lógica de negocio propia. Dos piezas de dominio no existían todavía y
+se agregaron porque las herramientas no tenían a qué delegar sin ellas: el
+modelo `Faq` —el diagrama entidad-relación ya lo dibujaba, pero nada antes
+del chatbot lo necesitaba— con su propio servicio de lectura, y el servicio
+que efectivamente escribe una `PrescriptionRequest`, entidad que existía
+sólo como esquema desde el Motor de Turnos sin ningún llamador.
+
+Las once herramientas comparten una única función de ensamblado en lugar de
+repetir, once veces, las mismas cuatro partes que el ticket pide de cada
+una: validar la entrada, resolver quién ejecuta la escritura, llamar al
+servicio de dominio y devolver un resultado estructurado sin nunca lanzar
+una excepción al modelo. Esa función compone tres piezas menores y también
+reutilizables: la validación por class-validator —el mismo pase que ya
+corren los DTO HTTP, y a mano, el importador de pacientes—, la resolución
+del actor que ejecuta la escritura, y la conversión de cualquier excepción
+en un resultado descriptivo. Esta última reutiliza directamente la
+jerarquía de excepciones HTTP de Nest en lugar de inventar un esquema de
+error propio: cada servicio de dominio ya lanza `NotFoundException`,
+`BadRequestException` o `ConflictException` con un mensaje pensado para
+mostrarse a quien hizo el pedido, y ese mismo mensaje —en vez del cuerpo de
+una respuesta HTTP que aquí no existe— es el que la herramienta devuelve.
+
+La resolución del actor es la pieza que conecta esta tarea con una decisión
+tomada en Fundaciones y hasta ahora sin más consumidor que los trabajos
+programados: el rol SYSTEM, sembrado una vez por organización, para
+atribuir escrituras que no tienen un usuario humano detrás. Varios métodos
+del servicio de turnos —reservar, confirmar, cancelar, reprogramar— ya
+distinguían ese rol explícitamente antes de esta tarea, en particular
+reprogramar, cuyo comentario nombra al bot como el caso que no debe exigirle
+confirmación al paciente porque la propia solicitud del paciente ya es esa
+confirmación. Lo único que faltaba era cómo resolver, desde un llamador sin
+una petición HTTP detrás, cuál es el usuario SYSTEM de la organización en
+curso — y ahí la diferencia con los trabajos programados es la que importa:
+un cron no tiene ningún contexto de inquilino todavía y debe recorrer todas
+las organizaciones desde afuera, mientras que una herramienta del chatbot
+corre dentro de una conversación que ya pertenece a un inquilino. La
+función nueva asume entonces que ese contexto ya está abierto —el futuro
+orquestador lo abre una vez por turno de conversación, tal como una petición
+HTTP lo abre una vez por request— y lee el usuario SYSTEM a través del
+cliente ya acotado, sin recibir ni aceptar un identificador de organización
+por parámetro. Esa ausencia es, a la vez, la respuesta concreta al
+requisito de marca blanca del ticket: ningún `input_schema` declara ese
+campo, así que no hay ningún camino por el que una herramienta pueda
+terminar actuando para un inquilino distinto del que ya está en curso.
+
+La búsqueda de preguntas frecuentes se resolvió con una similitud de
+palabras normalizadas —minúsculas, sin tildes ni puntuación, comparadas
+como conjuntos— en lugar de incorporar un motor de búsqueda semántica o una
+extensión de base de datos para eso. El conjunto de FAQ de una organización
+es, en la escala de este caso de estudio, unas pocas decenas de filas
+curadas por la propia clínica, no el volumen para el que existen esas
+herramientas, y ninguna de las dos estaba integrada en el proyecto en
+ningún otro punto; por debajo de un puntaje mínimo la herramienta responde
+que no encontró nada en lugar de forzar una respuesta, dejando en manos del
+modelo —no de la herramienta— decidir qué decirle al paciente, en línea con
+el resto del diseño: ninguna herramienta decide qué se comunica, sólo
+entrega datos.
+
+La herramienta de búsqueda o alta de paciente terminó exigiendo más datos
+que los que el ticket enumera en su firma ilustrativa. El DTO de alta de
+paciente, construido en el módulo de Pacientes con el comentario explícito
+de que lo usan tanto un administrador como el chatbot, exige fecha de
+nacimiento y contacto de emergencia además de nombre y apellido, porque el
+documento de requisitos los pide como datos obligatorios para poder
+reservar un turno; aceptar la firma abreviada del ticket habría creado
+pacientes no reservables, pateando el mismo error hacia el momento de la
+reserva en lugar de evitarlo en el alta. La herramienta terminó
+reutilizando ese DTO completo —no un DTO abreviado propio—, con los cuatro
+campos adicionales declarados opcionales en su propio contrato: el chatbot
+puede invocarla primero sólo con el documento para verificar si el
+paciente ya existe, y una segunda vez con el resto si tiene que darlo de
+alta.
+
+La herramienta de solicitud de receta, por último, se acotó deliberadamente
+a lo que el ticket pide —dejar la solicitud con estado pendiente en base,
+sin generar ninguna receta— y no disparó la notificación al profesional
+que el tipo de evento correspondiente ya tiene declarado en el esquema
+desde el Motor de Turnos, con un comentario explícito de que todavía no
+tiene ningún llamador: conectarla aquí hubiera sido una decisión —a quién y
+cuándo notificar— que no le corresponde a esta tarea, sino a la que
+construya el flujo conversacional completo alrededor de esta herramienta
+en una fase posterior.
+
