@@ -4253,3 +4253,58 @@ profesionales tratantes y ninguno— y, para el manejo fuera de alcance,
 tanto el camino en que el modelo responde el texto canónico y éste llega
 intacto al paciente como aquel en que produce una respuesta clínica y el
 guardrail la reemplaza antes de que salga del sistema.
+
+El módulo se cerró con el adaptador de WhatsApp Cloud API (P5.8, TASK-53),
+que conecta por primera vez a `OrquestadorService` con un canal HTTP real:
+hasta esta tarea, `procesar` sólo podía invocarse desde una prueba. Se
+implementaron las dos direcciones del canal. La saliente reemplaza al
+adaptador *stub* de `MessagingPort` que existía desde Fundaciones por
+`WhatsAppCloudAdapter`, contra la API Graph de Meta
+(`POST /v19.0/{phoneNumberId}/messages`), con las mismas credenciales
+globales —no por inquilino— que ya rigen para `OpenAiAdapter`, porque la
+firma de `sendMessage` que consumen los cinco llamadores existentes no
+lleva ningún identificador de número de origen y la entrega inicial sigue
+siendo de una sola clínica. La entrante agrega `WhatsappModule`, con un
+controlador de webhook deliberadamente separado de `ChatbotModule` —el
+orquestador no necesita saber que el canal es WhatsApp, y una prueba de
+conversación no debería arrastrar un servidor HTTP para ejercitarlo—, que
+resuelve a qué organización pertenece un número entrante a través de un
+modelo nuevo, `WhatsappPhoneNumber`, leído sin acotar por inquilino por la
+misma razón que ya documentaba `UsersService.findByEmail`: es la propia
+fila la que determina qué contexto de inquilino abrir, así que no puede
+exigirse uno que todavía no existe, y es seguro porque el campo que se
+busca es único en toda la base y no por organización.
+
+La verificación de la firma de cada mensaje entrante se hace contra los
+bytes crudos del cuerpo del pedido y no contra la reserialización de lo
+que Nest ya interpretó como JSON, porque Meta firma exactamente los bytes
+que envía y una reserialización podría diferir byte a byte sin que el
+contenido haya cambiado; la aplicación completa habilitó por eso la
+opción `rawBody` de Nest, que conserva el cuerpo crudo junto al ya
+interpretado sin afectar ninguna otra ruta. La comparación en sí usa
+`timingSafeEqual` en lugar de una comparación de cadenas común, para no
+filtrar el resumen verdadero un byte a la vez por el tiempo de respuesta.
+Un mensaje válidamente firmado para un número sin fila de mapeo, y una
+notificación de estado de entrega —que Meta envía por el mismo webhook,
+distinguible porque trae `statuses` en lugar de `messages`— se reconocen y
+se descartan sin invocar al orquestador, respondiendo 200 en ambos casos:
+ninguno de los dos es un error del cliente que reintentar vaya a resolver.
+
+Conectar un adaptador de mensajería que puede fallar de verdad, donde
+antes había uno que nunca fallaba, expuso un defecto latente en uno de los
+cinco lugares que ya llamaban a `sendMessage` sin envolver el llamado en
+`try/catch`: una prueba de conversación extremo a extremo de reprogramación
+pasó a fallar porque el pedido de confirmación que ese flujo envía dejó de
+ser un no-operación. La prueba en sí no ejercita el envío, así que se
+corrigió simulando el puerto de mensajería en ese caso puntual, con el
+mismo mecanismo que ya usaban las pruebas de reprogramación y de
+reasignación por lista de espera; quedó registrado, sin corregirse por
+quedar fuera del alcance declarado de esta tarea, que ninguno de los cinco
+llamadores atrapa hoy una falla real de entrega. Se corrigió, en cambio,
+un defecto real y anterior en una migración de datos ya fusionada
+(`20260821050000_seed_chatbot_config`, de TASK-48): sembraba el *system
+prompt* con `to_jsonb` sobre un literal sin convertir antes a `text`, lo
+que PostgreSQL rechaza por no poder resolver el tipo polimórfico, y fallaba
+en cualquier base nueva desde que se escribió — no se había detectado antes
+porque ninguna sesión anterior había corrido las migraciones contra una
+base completamente vacía.
