@@ -3990,3 +3990,183 @@ cancelación por debajo de la ventana mínima, por el turno que permanece
 intacto. El doble del puerto verifica además que ninguna herramienta haya
 fallado de forma inadvertida, ya que un guion cuyas herramientas fallaran
 todas seguiría, de otro modo, dando por buena la conversación.
+
+Sobre esos cinco flujos se incorporaron a continuación tres reglas de
+negocio que el documento de requisitos atribuye a la conversación y no al
+agendamiento: la validación de la edad del paciente cuando el profesional
+elegido atiende únicamente a mayores, la respuesta a consultas sobre la
+obra social del profesional, y la respuesta a consultas generales
+apoyada en la base de preguntas frecuentes. Ninguna de las tres requirió
+modificar el esquema. El indicador de sólo mayores y el tipo de atención
+del profesional se habían modelado en 3.2.1, la fecha de nacimiento del
+paciente y la marca de primera sesión del vínculo con cada profesional en
+3.2.2, y la tabla de preguntas frecuentes junto con su búsqueda por
+superposición de palabras se habían creado al construir el catálogo de
+herramientas. Lo que faltaba no era estructura de datos sino exponer esos
+hechos a la conversación en el instante en que el paciente los necesita.
+
+La validación de edad ilustra esa diferencia con precisión. La regla ya
+se aplicaba al reservar desde 3.2.3, de modo que ningún turno podía
+crearse en violación de ella; pero se aplicaba al final del recorrido,
+cuando el paciente ya había elegido profesional, consultado los horarios
+libres y escogido uno, y el resultado era un error tras una conversación
+completa. El requisito, en cambio, pide que el bot valide la edad y
+finalice allí el flujo de reserva, lo que exige una respuesta antes de
+ofrecer cualquier horario. Se agregó por eso una herramienta de
+verificación previa, invocada inmediatamente después de que el paciente
+elige profesional, que responde si ese profesional puede tomarlo y, si no
+puede, por qué.
+
+Incorporar ese tercer punto de aplicación obligó a resolver una
+duplicación preexistente. La misma regla estaba escrita dos veces dentro
+del servicio de turnos —una en la reserva y otra en la revalidación que
+ejecuta la reprogramación—, con redacciones distintas para el mismo
+rechazo. Llevarla a tres copias habría producido en una conversación el
+peor desenlace posible: que el bot autorice y la reserva rechace a
+continuación. La regla se extrajo entonces a un módulo sin estado ni
+acceso a la base, que recibe las dos columnas del profesional, la fecha
+de nacimiento del paciente y la edad mínima del inquilino, y devuelve el
+motivo del rechazo o su ausencia; los tres consumidores leen esa única
+definición. Es el mismo tratamiento que ya habían recibido la máquina de
+estados del turno en 3.2.3 y la regla de inactividad del paciente en
+3.2.2. La edad mínima se recibe como parámetro en lugar de leerse dentro
+de la regla, porque es un valor de configuración por inquilino y una regla
+que fuera a buscarlo necesitaría la base de datos, perdiendo la propiedad
+que la vuelve verificable de forma aislada.
+
+El motivo del rechazo se devuelve como un discriminante y no como un
+texto redactado. Los casos son tres —el profesional cerró la admisión de
+pacientes nuevos, el paciente no alcanza la edad mínima, o no hay fecha de
+nacimiento registrada—, y el manual de flujos indica qué decirle al
+paciente en cada uno, de modo que el rechazo se formula siempre igual en
+lugar de depender de cómo el modelo parafrasee una oración recibida desde
+el servidor. La separación del tercer caso respecto del segundo es
+deliberada y corrige el tratamiento anterior, que los confundía: la fecha
+de nacimiento es opcional en el esquema precisamente porque los registros
+históricos incorporados en 3.2.2 con frecuencia no la traen, y decirle a
+un adulto que no alcanza la edad mínima porque su ficha está incompleta
+sería un error de información y no una restricción legítima.
+
+Ese tercer caso no termina la conversación sino que la continúa. El
+documento de requisitos establece que el chatbot valida la edad
+solicitando el documento y la fecha de nacimiento, de modo que una ficha
+sin fecha registrada plantea una pregunta y no un rechazo. La herramienta
+de identificación del paciente ganó por eso un tercer camino: además de
+buscar por documento y de dar de alta cuando no existe, completa los datos
+obligatorios de reserva que el registro no tiene y la conversación acaba
+de aportar, tras lo cual el manual de flujos indica volver a consultar la
+elegibilidad y decidir con el dato recién obtenido. Lo que se escribe está
+determinado por lo que falta y no por lo que el modelo envía: si el
+registro ya tiene fecha de nacimiento y el modelo aporta otra, no se
+escribe nada. Esa distinción es la que permite apartarse de la regla
+establecida en el apartado anterior —los datos de contacto de un paciente
+registrado son el registro de la clínica y no se reescriben desde la
+conversación— sin contradecirla, porque completar un valor nulo agrega un
+hecho que la ficha nunca tuvo mientras que sobrescribir uno existente es
+la actualización destructiva que aquella regla rechaza. La escritura pasa
+por el mismo servicio auditado que usan la aplicación y la API, de modo
+que la traza registra qué campos completó la conversación y ninguno más, y
+una ficha ya completa no paga escritura ni deja entrada alguna.
+
+La lista de datos que una reserva exige —documento, fecha de nacimiento y
+contacto de emergencia, de los cuales sólo los dos últimos pueden faltar,
+por ser el documento una columna no nula— quedó también extraída a un
+módulo puro compartido. Estaba escrita tres veces: en la lectura de estado
+de datos del paciente construida en 3.2.2, en la validación previa de la
+reserva de 3.2.3 y en esta herramienta que ahora los completa. La
+consecuencia de un desfasaje entre esas copias sería la misma que en el
+caso de la regla de edad, sólo que un paso más tarde: un bot que completa
+lo que se le dijo que faltaba y una reserva que después rechaza por un
+campo que nadie le pidió al paciente. El módulo devuelve la lista en orden
+fijo, para que la conversación pida los datos siempre en la misma
+secuencia, y la herramienta de identificación se la entrega al modelo en
+cada respuesta en lugar de dejar que la infiera de qué campos llegan en
+nulo, que sería hacerle rederivar en lenguaje natural una regla del
+sistema.
+
+Esta verificación es una salida temprana del recorrido conversacional y
+no un control: la reserva sigue aplicando la misma regla al recibir el
+pedido, y una prueba lo comprueba simulando un modelo que ignora la
+verificación y reserva de todos modos, con el turno rechazado igualmente.
+El criterio es el mismo que gobierna la relación entre el *system prompt*
+y los guardrails: un paso que depende de que el modelo lo ejecute puede
+mejorar la conversación, pero nunca puede ser lo que garantiza una regla.
+Una consideración análoga determinó qué predicado define a un "paciente
+nuevo" a estos efectos. El vínculo entre paciente y profesional lleva
+tanto un tipo —nuevo o recurrente— como una marca de primera sesión, y la
+regla de inactividad de 3.2.2 degrada el tipo a "nuevo" cuando el
+paciente deja de concurrir durante más de un año, mientras que la marca
+de primera sesión permanece en falso una vez que esa sesión ocurrió. Se
+adoptó la marca de primera sesión, que es la que ya usaba la reserva:
+usar el tipo habría reintroducido por otra vía la discrepancia que toda
+la extracción de la regla buscaba evitar, y además habría sometido a la
+restricción de admisión de pacientes nuevos a personas que son pacientes
+del profesional desde hace años.
+
+La consulta sobre obras sociales se resolvió ampliando el listado de
+profesionales que el flujo de reserva ya invoca, en lugar de agregar una
+herramienta propia. La lectura que sirve ese listado ya cargaba, con cada
+profesional, las obras sociales que acepta —según el modelo de aceptación
+descrito en 3.2.0, donde la obra social es un catálogo global sin dueño y
+lo que pertenece a un profesional es su aceptación—, el flujo de reserva
+invoca ese listado de todos modos, y la clínica cuenta con un puñado de
+profesionales. Una herramienta adicional habría sido un segundo viaje a
+la base para releer datos que el modelo ya tenía en contexto. Las obras
+sociales se devuelven únicamente por nombre, dado que el identificador
+del catálogo es interno y el manual de flujos prohíbe mostrarle
+identificadores al paciente: un campo que la herramienta no devuelve es un
+campo que el modelo no puede filtrar, la misma garantía estructural que se
+aplicó a la especialidad.
+
+El tipo de atención se informa tal como lo modela la fuente de verdad, con
+dos valores excluyentes —obra social o particular— y no con la tercera
+alternativa combinada que el enunciado de la tarea sugería, que ni el
+diagrama entidad-relación ni el esquema implementado respaldan. La
+política institucional sobre obras sociales, que sí admite matices —qué
+cobertura acepta la clínica en general, o si recibe coseguro—, es
+contenido que corresponde a la tabla de preguntas frecuentes, configurable
+por inquilino, y el manual de flujos deriva explícitamente ese tipo de
+pregunta hacia allí. Los importes de la consulta, que el documento de
+requisitos contempla informar reservando únicamente el copago, quedaron
+fuera de alcance por decisión de la planificación, que remite al guardrail
+monetario introducido previamente; el manual de flujos se lo indica al
+modelo de forma explícita, de modo que la instrucción y el guardrail
+apuntan en la misma dirección en lugar de contradecirse.
+
+La respuesta a preguntas frecuentes ya existía como herramienta y
+devolvía la ausencia de coincidencia como un resultado exitoso —la
+clínica simplemente no tiene una fila para esa pregunta— y no como un
+fallo. Lo que faltaba era decir qué hacer con esa ausencia. Un modelo que
+recibe únicamente "no hubo coincidencia" está a un turno de responder la
+pregunta por su cuenta, con lo que sea que crea saber sobre una clínica
+que no conoce. El texto que debe enviarse en ese caso se devuelve
+entonces dentro del propio resultado de la herramienta, con la
+instrucción de enviarlo literalmente: es el mismo tratamiento que recibió
+el texto de solicitud de consentimiento, y por la misma razón. Se mantuvo
+como constante y no como plantilla configurable, porque es una conducta
+del bot y no contenido de la clínica —lo que cada inquilino personaliza
+son las filas de la tabla—, y su redacción evita deliberadamente
+mencionar a una secretaria, un operador o un número de teléfono, dado que
+el guardrail correspondiente bloquea toda derivación a una persona y el
+documento de requisitos es explícito en que el bot no deriva a un
+operador humano.
+
+La validación de estas tres reglas siguió el esquema de pruebas de
+conversación ya descrito, con el puerto de inteligencia artificial
+sustituido por un guion y todo lo demás real. El caso de la edad se
+verifica en la frontera y por el estado de la base: un paciente cuya
+fecha de nacimiento lo deja un día por debajo del umbral recibe el
+rechazo y no queda ningún turno creado, mientras que el mismo caso un día
+más tarde reserva efectivamente. El de las preguntas frecuentes se
+verifica con una fila homónima cargada en otra organización, de modo que
+una filtración entre inquilinos se manifestaría como la respuesta
+equivocada y no como una ausencia. Esa misma validación reveló, sobre la
+herramienta de identificación del paciente, que lo que cruzaba hacia el
+modelo era la entidad de la base y no la respuesta presentada: incluía el
+identificador de organización —el dato que todos los presentadores del
+sistema existen para quitar antes de cruzar un límite— y la fecha de
+nacimiento como un instante en tiempo universal, en lugar del día
+calendario que la clínica lee. Se aplicó el presentador que ya usan los
+endpoints de pacientes, con lo que el modelo recibe además la edad ya
+calculada y no necesita hacer aritmética de fechas, que es precisamente
+lo que la validación determinística de edad existe para evitar.
