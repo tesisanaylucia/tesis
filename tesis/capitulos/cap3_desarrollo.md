@@ -3854,3 +3854,139 @@ referencia en tercera persona a un paciente nombrado ("el turno de
 \<Nombre\>"), dado que una respuesta legítima siempre se dirige al paciente
 en segunda persona.
 
+
+Con el ciclo genérico de herramientas y la capa de guardrails ya en su
+lugar, la última tarea de esta sección (P5.5, TASK-50) construyó los cinco
+flujos conversacionales que el paciente recorre efectivamente —reservar,
+confirmar, reprogramar, cancelar y consultar turnos— junto con los dos
+pasos previos comunes a todos ellos: la identificación del paciente por
+número de documento y la verificación del consentimiento antes de tomar
+una reserva. En una arquitectura de *function calling* como la descripta,
+implementar un flujo no consiste en escribir una máquina de estados por
+flujo dentro del orquestador: quien conduce la conversación es el propio
+modelo, y lo que el sistema aporta son el manual de procedimiento que ese
+modelo lee en cada turno, las herramientas sin las cuales el
+procedimiento no puede ejecutarse, y la aplicación determinística de
+aquellos pasos que el documento de requisitos atribuye al sistema y no al
+bot. La alternativa de codificar cada flujo como una máquina de estados
+imperativa se descartó por duplicar, en código, la conducción que el
+catálogo de herramientas ya delega en el modelo, anulando la razón misma
+por la que se eligió esta arquitectura.
+
+El manual de procedimiento se anexa al *system prompt* de cada turno, y
+no se incorporó a la plantilla base que el inquilino puede sobrescribir.
+La división separa dos cosas de naturaleza distinta: el texto base
+describe rol, tono y límites del bot —exactamente la parte que una
+implantación de marca blanca tiene razones legítimas para reescribir—,
+mientras que el manual describe el procedimiento que imponen las
+herramientas del propio sistema, de modo que una clínica que lo
+reescribiera no estaría personalizando la reserva sino rompiéndola. Es el
+mismo criterio aplicado a los guardrails en la tarea anterior, trasladado
+del plano de la seguridad al del procedimiento. Al redactar el manual
+apareció además una carencia no prevista en el enunciado de la tarea: la
+consulta de disponibilidad recibe un rango de fechas y un modelo de
+lenguaje no dispone de reloj, con lo cual ninguna expresión como "la
+semana que viene" —que es como un paciente pide un turno por mensajería—
+podía traducirse a un rango concreto. El *prompt* pasó entonces a
+informar la fecha del día, resuelta en cada turno y no al construir la
+constante, para que una conversación sostenida al día siguiente no reciba
+la fecha del anterior.
+
+Del lado de las herramientas, el catálogo de P5.2 resultó incompleto para
+sostener el flujo de reserva: tanto la consulta de disponibilidad como la
+reserva reciben el identificador del profesional, y el modelo no tenía
+forma de obtener uno que no fuera inventándolo. Se agregó una herramienta
+de listado de profesionales que delega en la misma lectura que ya servía
+el listado HTTP del Módulo 1 y que, al resolverse por el cliente de
+persistencia acotado por inquilino, queda confinada por construcción a la
+organización de la sesión —la respuesta concreta al requisito de marca
+blanca de que el chatbot sólo muestre profesionales del inquilino—. La
+herramienta no recibe parámetros y devuelve únicamente identificador,
+nombre y matrículas: el documento de requisitos establece que la
+especialidad no modifica el flujo de reserva y que el paciente elige al
+profesional con independencia de ella, y no exponer el dato resulta una
+garantía más fuerte que instruir al modelo para que no filtre por él, ya
+que un filtro que la herramienta no puede expresar es un filtro que el
+modelo no puede aplicar.
+
+El mismo criterio estructural resolvió el dato de contacto del paciente.
+El enunciado de la tarea listaba el celular entre los datos que el bot
+debía solicitar a quien no estuviera registrado, pero el número ya está en
+la conversación: la clave de sesión definida en P5.3 es, precisamente, la
+organización más el número desde el que el paciente escribe. Pedírselo
+obliga a retipear un dato ya entregado de forma implícita, con la
+posibilidad de equivocarse y de que la clínica quede con un número por el
+que no puede contactarlo. El parámetro se retiró del esquema de la
+herramienta de alta —no sólo de las instrucciones del manual— y el valor
+se lee de un contexto de conversación por turno, equivalente del contexto
+de inquilino ya existente y abierto por el orquestador dentro de él, de
+modo que la herramienta lo obtiene sin que el modelo llegue a conocerlo.
+Se descartó tanto sumar un parámetro adicional a la operación del
+orquestador, que duplicaría un dato ya transportado por la clave de sesión
+con posibilidad de discrepancia, como interpolar el número en el *prompt*
+para que el modelo lo reenviara como argumento. El número se escribe
+únicamente en el alta y nunca sobre una ficha existente, porque
+reescribir el dato de contacto registrado por la clínica con cualquier
+número que escriba sería una actualización destructiva silenciosa que el
+documento de requisitos no contempla: lo que éste prevé es una
+actualización de datos recién tras un año sin concurrir.
+
+La verificación de consentimiento se reformuló para devolver, en el mismo
+resultado, el texto que debe enviarse al paciente cuando no hay
+aceptación registrada, renderizado con el mismo motor de plantillas —y
+por lo tanto con la misma personalización por inquilino— que los avisos
+de la sección anterior. La alternativa de exponer esa redacción como una
+herramienta separada se descartó porque verificación y solicitud son un
+único paso del flujo, y un modelo obligado a pedir la redacción por
+separado tarde o temprano la improvisaría; tratándose del consentimiento
+que exige la Ley 25.326, la redacción es precisamente lo que no admite
+improvisación. La consulta de turnos del paciente, por su parte, pasó de
+delegar en el listado general a devolver sólo los turnos activos y
+futuros con el nombre del profesional de cada uno, porque los cuatro
+flujos que parten de ella —consultar, confirmar, reprogramar y cancelar—
+necesitan exactamente el conjunto de turnos sobre los que el paciente
+todavía puede actuar, y ofrecerle al modelo un turno ya transcurrido sólo
+habilita que el bot proponga cancelarlo. El conjunto de estados
+considerados activos no se enumeró de nuevo sino que se deriva de la
+máquina de estados del turno introducida en 3.2.3, como aquellos desde
+los que la cancelación sigue siendo alcanzable, para que no pueda
+desfasarse de ella en silencio.
+
+El único paso de los cinco flujos que se implementó de forma
+determinística, además de pedirse en el manual, es el ofrecimiento de
+reprogramación posterior a una cancelación. El documento de requisitos lo
+redacta como una acción del sistema —ante una cancelación, el sistema le
+pregunta al paciente si desea reprogramar— y no como una sugerencia de
+estilo para el bot; dejarlo enteramente en manos del modelo, además,
+habría vuelto inverificable el criterio de aceptación correspondiente,
+dado que una prueba con el puerto de inteligencia artificial simulado no
+puede demostrar nada sobre un texto que la propia prueba redacta. El
+ofrecimiento se aplica sobre el texto final del turno, en el mismo punto
+y por la misma razón que los guardrails: una regla que debe cumplirse
+para todos los pacientes no puede depender de que el modelo haya seguido
+el *prompt* en esa ocasión. La condición que lo dispara son las
+herramientas que efectivamente tuvieron éxito durante el turno y no el
+texto de la respuesta, de modo que una cancelación rechazada por la
+ventana mínima de anticipación —regla que ya vivía en el servicio de
+turnos desde 3.2.3 y que deliberadamente no se replicó en esta capa— deja
+el turno en pie y no genera ofrecimiento alguno; y una respuesta
+bloqueada por un guardrail nunca recibe el agregado, porque anexarle una
+pregunta reabriría la conversación que la regla acaba de cerrar. Si el
+modelo ya ofreció la reprogramación con palabras propias, esa redacción
+se conserva intacta.
+
+La validación de los cinco flujos se hizo con pruebas de conversación
+extremo a extremo contra la base de datos real, sustituyendo únicamente
+el puerto de inteligencia artificial por un guion de llamadas a
+herramientas y dejando reales el orquestador, el catálogo de
+herramientas, los servicios de dominio de los Módulos 2 y 3 y el motor de
+persistencia. Cada flujo se verifica por el estado que deja en la base y
+no por el texto de la respuesta —que, con el modelo simulado, lo escribe
+la propia prueba—: la reserva de un paciente nunca visto se comprueba por
+el registro del paciente, la fila de consentimiento y el turno
+resultantes; la confirmación, por la transición de estado y su marca
+temporal; la reprogramación, por el instante actualizado del turno; y la
+cancelación por debajo de la ventana mínima, por el turno que permanece
+intacto. El doble del puerto verifica además que ninguna herramienta haya
+fallado de forma inadvertida, ya que un guion cuyas herramientas fallaran
+todas seguiría, de otro modo, dando por buena la conversación.
