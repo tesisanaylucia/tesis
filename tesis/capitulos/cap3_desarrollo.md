@@ -4350,3 +4350,44 @@ puerto de IA, la firma y el armado del cuerpo del webhook de WhatsApp, y
 los constructores de profesional/paciente/turno de prueba— se extrajeron a
 un directorio de soporte compartido entre los archivos de prueba del
 módulo, sin cambiar el comportamiento de ninguno.
+
+Con el Módulo 5 cerrado, quedaba pendiente una pieza administrativa que
+ninguna de sus tareas anteriores había cubierto: el propio comentario
+dejado en `faq.module.ts` por P5.2 (TASK-47) anotaba explícitamente que no
+había controlador porque nada en el alcance de esa tarea pedía un ABM
+administrativo sobre `Faq`, la tabla que desde entonces alimentaba
+`FaqService.findBestMatch` (P5.6, TASK-51). Esa deuda se saldó agregando
+`GET/POST/PATCH/DELETE /admin/faqs` (P5.b, TASK-77), sin ningún cambio de
+esquema: el modelo y su acotamiento por `organizationId` ya existían. El
+patrón se tomó del ABM administrativo de feriados (P3.b, TASK-78) en lugar
+de diseñarse de nuevo —ambos son un ABM simple acotado por inquilino, sin
+relación jerárquica con `Professional` o `Patient`, protegido por rol
+ADMIN a nivel de clase—, incluida la misma convención de "no encontrado en
+vez de prohibido" para el aislamiento entre inquilinos: un `id` de otro
+inquilino resuelve exactamente igual que uno inexistente, porque un 403
+confirmaría que la fila existe. La diferencia con feriados es la clave: una
+`Faq` tiene `id` propio en lugar de una clave natural compuesta con la
+fecha, así que el parámetro de ruta se valida con `ParseUUIDPipe` en vez del
+`ParseCalendarDatePipe` a medida de feriados.
+
+El contrato JSON de esta tarea usa `question`/`answer`, no
+`pregunta`/`respuesta` como sugiere literalmente la redacción del ticket:
+el modelo `Faq`, ya implementado desde TASK-47, había elegido esos nombres
+en inglés siguiendo la convención del repositorio de mantener el contrato
+JSON en inglés y el glosario en español sólo en los comentarios, y la
+descripción del ticket describe la entidad en los términos del diagrama
+entidad-relación de la SRS, no prescribe el contrato HTTP. Sostener
+`question`/`answer` evita que el mismo dato tenga dos nombres distintos
+según lo lea el chatbot o este ABM. El `DELETE`, a diferencia del de
+feriados, responde `204 No Content` sin cuerpo: borrar una `Faq` no tiene
+ningún efecto colateral que valga la pena reportar —el propio ticket pide
+explícitamente que el borrado no toque el historial de conversaciones, y
+en efecto ninguna fila del chatbot referencia el identificador de la
+FAQ—, así que se siguió la convención más simple ya usada por
+`LicensesController.remove` en vez de inventar una respuesta para un
+efecto que no existe. El `PATCH` admite la pregunta y la respuesta por
+separado, ninguna anulable a `null`, porque ambas columnas son `NOT NULL`
+y una FAQ sin una de las dos no es un estado parcial válido. Las tres
+escrituras —alta, edición y borrado— quedaron auditadas dentro de la misma
+transacción interactiva que las ejecuta, con el mismo criterio que ya usa
+el ABM de feriados.
