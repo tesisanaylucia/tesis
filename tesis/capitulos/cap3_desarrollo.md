@@ -4391,3 +4391,68 @@ y una FAQ sin una de las dos no es un estado parcial válido. Las tres
 escrituras —alta, edición y borrado— quedaron auditadas dentro de la misma
 transacción interactiva que las ejecuta, con el mismo criterio que ya usa
 el ABM de feriados.
+
+### 3.2.8 Endurecimiento, cumplimiento y piloto
+
+Antes de continuar con los módulos siguientes se realizó una auditoría del
+estado real de la base de datos de desarrollo, contrastando tanto el
+archivo de esquema como el historial de migraciones efectivamente aplicado
+contra el catálogo de PostgreSQL, en lugar de asumir que ambos coincidían.
+La revisión se organizó en torno a las tres propiedades que el propio
+esquema declara como reglas de diseño desde sus primeras tareas
+(integridad referencial, normalización sin duplicación de la columna de
+inquilino, y relaciones expresadas mediante claves foráneas compuestas
+cuando una entidad depende de dos entidades acotadas por organización a la
+vez) y confirmó que el diseño existente ya las sostenía de forma
+consistente: cada clave foránea documentada en comentarios existía
+efectivamente en la base, y lo mismo ocurría con las restricciones de
+verificación (`CHECK`) que PostgreSQL no permite declarar directamente
+desde el esquema de Prisma y que el equipo venía añadiendo a mano en
+migraciones puntuales.
+
+La auditoría encontró, sin embargo, un vacío concreto en una de esas
+relaciones compuestas: la oferta de un turno liberado a un candidato de
+lista de espera (`WaitlistOffer`, P4.5) apuntaba a la entrada de la cola
+(`WaitlistEntry`) mediante una clave foránea compuesta que sólo garantizaba
+que ambas filas pertenecieran a la misma organización, no que se tratara
+del mismo paciente —la oferta guarda su propio identificador de paciente,
+de forma independiente al que ya determina la entrada de la cola que
+referencia—. En la práctica ambos valores siempre habían coincidido, porque
+el adaptador que persiste la oferta deriva los dos de un mismo candidato,
+pero esa coincidencia sólo la sostenía el código de la capa de aplicación,
+exactamente el tipo de garantía que el resto del esquema ya venía
+resolviendo con claves foráneas compuestas de tres columnas en lugar de
+confiar en que cada punto de escritura la respete. Se corrigió ampliando el
+índice único de destino y la clave foránea a las tres columnas
+(organización, identificador de la entrada y paciente), sin necesidad de
+tocar la capa de aplicación: al no existir todavía datos reales en ninguna
+de las dos tablas, la migración pudo aplicarse sin ningún caso existente
+que la nueva restricción fuera a rechazar.
+
+La misma revisión expuso un segundo problema, esta vez en el propio
+historial de migraciones y no en el esquema: una migración aplicada
+semanas antes había fallado en su primer intento por una particularidad de
+PostgreSQL al inferir el tipo de un literal de texto sin anotar
+explícitamente, el commit siguiente había corregido esa línea y el
+reintento sí se había aplicado con éxito, pero el intento fallido nunca se
+marcó como resuelto en el registro interno de Prisma. El efecto práctico
+era que cualquier sesión de trabajo nueva sobre el entorno de desarrollo
+local se encontraba con el flujo de migraciones bloqueado, exigiendo un
+reinicio completo de la base para continuar. Se optó por el mecanismo que
+la propia herramienta documenta para esta situación —marcar el intento
+fallido como revertido en el registro, sin tocar datos ni esquema— en lugar
+de aceptar el reinicio sugerido por defecto, precisamente porque ese
+reinicio habría sido una pérdida de estado evitable para resolver un
+problema que era de contabilidad interna, no de los datos en sí.
+
+Un tercer hallazgo, de higiene de datos más que de diseño, mostró que el
+catálogo de obras sociales —deliberadamente la única entidad del esquema
+sin organización propia, por tratarse de un catálogo del mundo real que
+cada profesional acepta o no— había acumulado filas de prueba dejadas por
+corridas anteriores de la suite de pruebas de integración: al no
+pertenecer a ninguna organización, ninguna limpieza de datos que borre en
+cascada desde ella llega nunca a alcanzarlo. Las filas de prueba se
+eliminaron, y la ausencia de un mecanismo de limpieza para catálogos
+globales creados por pruebas de integración quedó registrada como algo a
+resolver en una tarea futura, sin que fuera indispensable resolverlo para
+cerrar esta auditoría.
