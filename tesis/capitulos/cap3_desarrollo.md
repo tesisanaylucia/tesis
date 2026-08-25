@@ -4170,3 +4170,86 @@ calendario que la clínica lee. Se aplicó el presentador que ya usan los
 endpoints de pacientes, con lo que el modelo recibe además la edad ya
 calculada y no necesita hacer aritmética de fechas, que es precisamente
 lo que la validación determinística de edad existe para evitar.
+
+La última pieza conversacional del módulo cubre la solicitud de recetas y
+el tratamiento de los mensajes que quedan fuera del alcance del sistema.
+El documento de requisitos delimita la primera con precisión: ante el
+pedido de una receta el chatbot registra la solicitud en una lista que el
+profesional consultará desde su aplicación, y es el profesional quien la
+elabora por su cuenta, sin que el bot ni la aplicación intervengan en su
+confección. El sistema registra, entonces, *que* una receta fue pedida y a
+quién, nunca de qué; la entidad correspondiente no tiene dónde guardar
+una medicación, el manual de flujos prohíbe explícitamente preguntarla y
+la regla de contenido clínico descrita más abajo bloquearía cualquier
+respuesta que la mencionara. Es el caso límite que muestra dónde corre la
+línea de la restricción de datos clínicos que atraviesa todo el proyecto.
+
+El flujo no requirió herramientas nuevas. Los dos pasos que el análisis
+del requisito sugería —comprobar que el paciente tiene al menos un
+profesional tratante y, cuando tiene más de uno, preguntarle a cuál va
+dirigido el pedido— se resuelven con datos que la conversación ya posee:
+la herramienta de identificación por documento devuelve la respuesta
+presentada del paciente, que incluye sus vínculos de tratamiento con el
+nombre de cada profesional. Agregar una herramienta para releer eso
+habría sido un segundo viaje a la base por información ya cargada en el
+contexto del modelo, el mismo criterio con el que la consulta de obra
+social se resolvió sobre el listado de profesionales existente. Lo que se
+agregó fue el procedimiento en el manual de flujos, el texto exacto de la
+confirmación —que reúne las dos cosas que el requisito manda decir: que
+la solicitud quedó registrada y será atendida en días hábiles, y el
+recordatorio de que las recetas se piden en días de semana en horario
+laboral— y la reducción del resultado de la herramienta a lo que el
+modelo necesita, en lugar de la fila de la base con sus identificadores
+internos y sus marcas de tiempo.
+
+Como en el resto del módulo, el paso conversacional aporta que la
+conversación termine bien, nunca que la regla se cumpla. El manual indica
+detenerse cuando el paciente no tiene ningún profesional asignado, pero
+debajo el servicio que registra la solicitud afirma la existencia del
+vínculo de tratamiento antes de escribir —lo que la clave foránea
+compuesta de la entidad exige de todos modos, al apuntar al vínculo y no
+a sus dos extremos—, de modo que un modelo que ignore la instrucción
+recibe un fallo descriptivo y nada queda escrito. Esta tarea conectó
+además la notificación al profesional que el esquema declaraba desde la
+fase de Notificaciones sin ningún emisor: el registro de una solicitud
+crea la notificación correspondiente fuera de la transacción y con
+tratamiento de mejor esfuerzo, igual que la cancelación y la reasignación
+de turnos, porque un fallo al notificar no puede deshacer un registro del
+que al paciente ya se le avisó.
+
+El manejo de los mensajes fuera de alcance obligó a separar dos
+respuestas que la capa de guardrails había unificado en una sola oración.
+Son contestaciones a preguntas distintas: a quien pregunta cuál es su
+diagnóstico hay que decirle qué hace este bot, y a quien atraviesa una
+urgencia hay que decirle a dónde acudir en ese momento; un texto que dice
+ambas cosas dice la mitad equivocada más fuerte en cada caso. Más
+relevante que la redacción es dónde se evalúa cada una. La urgencia se
+detecta sobre el mensaje entrante y corta el turno antes de llamar al
+modelo o a cualquier herramienta, como ya lo hacía. El fuera de alcance,
+en cambio, se evalúa sobre la respuesta del bot, y no sobre lo que el
+paciente escribió: un paciente puede mencionar un síntoma camino a pedir
+un turno —"quiero un turno, hace días que me duele la cabeza"— y una
+detección por palabras clave sobre su mensaje rechazaría exactamente la
+reserva que el sistema existe para tomar. Lo que dice el bot no tiene esa
+ambigüedad, porque no hay conversación en la que corresponda que enuncie
+un diagnóstico o una dosis. La regla nueva reemplaza por el texto de
+fuera de alcance toda respuesta que enuncie el diagnóstico del paciente,
+le atribuya un cuadro, indique una dosis o le pida modificar su
+medicación, con expresiones deliberadamente acotadas y no un vocabulario
+suelto: palabras como "receta" o "medicación" aparecen legítimamente en
+el flujo de solicitud, de modo que lo que dispara la regla es que el bot
+enuncie contenido clínico y no que esas palabras ocurran.
+
+El manual de flujos importa esos dos textos del módulo de guardrails en
+lugar de reescribirlos. Al modelo se le pide que responda exactamente esas
+frases y el guardrail se las impone cuando no lo hace; si cada uno
+tuviera su copia, la única evolución posible sería que llegaran a decir
+cosas distintas. Importándolos, lo que se le pide al modelo y lo que el
+sistema efectivamente envía son la misma cadena, y una prueba de
+conversación verifica que ambas aparecen en el prompt de cada turno. La
+validación del conjunto siguió el esquema ya descrito, verificando por el
+estado de la base los tres casos del flujo —un profesional tratante, dos
+profesionales tratantes y ninguno— y, para el manejo fuera de alcance,
+tanto el camino en que el modelo responde el texto canónico y éste llega
+intacto al paciente como aquel en que produce una respuesta clínica y el
+guardrail la reemplaza antes de que salga del sistema.
