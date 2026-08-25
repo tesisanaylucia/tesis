@@ -4308,3 +4308,45 @@ que PostgreSQL rechaza por no poder resolver el tipo polimórfico, y fallaba
 en cualquier base nueva desde que se escribió — no se había detectado antes
 porque ninguna sesión anterior había corrido las migraciones contra una
 base completamente vacía.
+
+El Módulo 5 se cerró con la suite de pruebas de conversación de punta a
+punta que el resto de sus tareas venía dejando pendiente (P5.9, TASK-54):
+una conversación entera dirigida por un `POST /webhook` firmado —el mismo
+punto de entrada real que atiende `WhatsappWebhookController` desde
+TASK-53— y verificada contra el espía de `MessagingPort`, en lugar de
+invocar al orquestador directamente o de leer un valor de retorno, para
+cada uno de los nueve flujos del ticket: reserva completa, cancelación con
+ofrecimiento de reprogramación, confirmación a las 24 horas, FAQ del
+inquilino, solicitud de receta, guardrail de copago, urgencia fuera de
+alcance, edad mínima y aislamiento entre dos inquilinos que comparten el
+mismo número de WhatsApp. El puerto de IA admite dos modos elegidos por una
+única variable de entorno —simulado por defecto, con el mismo doble de
+prueba que ya usaba `chatbot-flows.e2e-spec.ts`, o real detrás de
+`USE_REAL_AI=true`, dejando conectado el `OpenAiAdapter` de
+`IntegrationsModule`— sin que el código de las pruebas cambie entre un modo
+y otro; sólo quedan condicionadas al modo las aserciones que dependen de la
+redacción exacta o de la secuencia exacta de herramientas de un modelo
+real, no las que son invariantes del dominio (que nunca se reserva un
+turno para un menor con un profesional restringido, o que el corte por
+urgencia nunca llega a invocar al puerto de IA), que corren igual en los
+dos modos. Un grupo de pruebas aparte reemplaza, un nivel por debajo de los
+puertos, tanto el cliente del SDK de `openai` como la función `fetch` de
+`WhatsAppCloudAdapter` por dobles que lanzan una excepción si se invocan,
+de modo que "el modo simulado no llama a ninguna API externa" queda
+comprobado contra el límite real de red.
+
+Intentar validar el criterio de aceptación de que la suite corra en
+integración continua sin credenciales expuso un defecto anterior a esta
+tarea: `openAiClientProvider` y `WhatsAppCloudAdapter` leen sus variables
+de entorno con `ConfigService.getOrThrow` al construirse, y todo proveedor
+del grafo de módulos de Nest se construye al arrancar la aplicación aunque
+su token esté reemplazado por un doble en una prueba puntual —el reemplazo
+evita que se llame, no que se construya—, mientras que el flujo de trabajo
+de integración continua nunca había declarado esas cinco variables. Sin la
+corrección, ninguna suite de integración del repositorio, no sólo la de
+esta tarea, habría podido arrancar la aplicación ahí. Por último, tres
+piezas que antes vivían duplicadas o a punto de duplicarse —el doble del
+puerto de IA, la firma y el armado del cuerpo del webhook de WhatsApp, y
+los constructores de profesional/paciente/turno de prueba— se extrajeron a
+un directorio de soporte compartido entre los archivos de prueba del
+módulo, sin cambiar el comportamiento de ninguno.
