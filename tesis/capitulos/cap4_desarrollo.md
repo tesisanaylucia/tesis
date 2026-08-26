@@ -4484,6 +4484,49 @@ generación del PIN → alta del passcode en TTLock → persistencia en
 cerradura (`AccessCode` como hijo de `Appointment`, y `LockLog` con sus dos
 claves foráneas ya reales hacia `Appointment` y `AccessCode`).
 
+La siguiente tarea del módulo (P6.2, TASK-56) cerró la pregunta que TASK-55
+había dejado abierta a propósito: *cuándo* se genera un código temporal.
+`AccessCodeService.generateForAppointment` se conectó al único punto del
+sistema donde un turno pasa a CONFIRMADO —`AppointmentsService.confirm`,
+alcanzado tanto desde el endpoint HTTP como desde la herramienta del
+chatbot—, siguiendo la fórmula que da el propio ticket: la ventana de
+validez del código empieza quince minutos antes de la hora del turno y
+termina una hora después de que termina la consulta, calculada sobre la
+duración que el turno grabó al reservarse y no sobre la configuración vigente
+del profesional. Antes de persistir nada, el servicio llama a
+`LockPort.createTemporaryCode` y después a `LockPort.verifyCodeInstalled`,
+y sólo si esta segunda llamada confirma que el código efectivamente quedó
+instalado en la cerradura se guarda `CODIGO_ACCESO` con estado activo — el
+propio ticket es explícito en que no debe enviarse nada al paciente sin
+esa confirmación, aunque el envío en sí (P6.4) sea una tarea posterior.
+
+Cuando la verificación falla, o cuando `LockPort` falla antes de llegar a
+ese punto, el servicio no persiste ningún código activo ni deja que el
+error se propague hacia la confirmación del turno: un problema de la
+integración física no puede convertir una confirmación por lo demás válida
+en un error de la API. En su lugar, dispara lo único que puede significar
+concretamente hoy "el flujo de tolerancia a fallos de TASK-59" —una tarea
+que todavía no existe—: un evento operativo en `LockLog`
+(`ACCESS_CODE_ERROR`, con su número de intento) que un futuro barrido de
+reintentos pueda recorrer, y una notificación al profesional para que un
+humano se entere mientras tanto. El literal `ACCESS_CODE_ERROR` no es una
+elección nueva de esta tarea: ya estaba fijado, junto con el propio campo
+de número de intento, en comentarios y pruebas que TASK-55 había dejado
+escritos de antemano, como si ya anticiparan esta implementación. La
+verificación de idempotencia —no crear un segundo código activo para un
+turno que ya tiene uno— se resuelve con una simple lectura indexada antes
+de tocar `LockPort`, sin necesidad de una transacción serializable: la
+propia máquina de estados del turno ya impide que la confirmación se
+dispare dos veces bajo el flujo normal, así que la única concurrencia real
+posible queda, otra vez, del lado de un futuro llamador de TASK-59.
+
+Figura pendiente: diagrama de secuencia de la confirmación del turno con
+generación de código (transición de estado y auditoría, ya comprometidas →
+verificación de idempotencia → creación y verificación del código vía
+`LockPort` → persistencia de `CODIGO_ACCESO` activo, o registro de
+`ACCESS_CODE_ERROR` y notificación al profesional sin afectar la
+confirmación).
+
 ## 4.9 Endurecimiento, cumplimiento y piloto
 
 Antes de continuar con los módulos siguientes se realizó una auditoría del
