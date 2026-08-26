@@ -4527,6 +4527,72 @@ verificación de idempotencia → creación y verificación del código vía
 `ACCESS_CODE_ERROR` y notificación al profesional sin afectar la
 confirmación).
 
+La tercera tarea del módulo (P6.3, TASK-57) cerró el ciclo de vida completo
+de `CODIGO_ACCESO`, atando los dos cabos que TASK-56 había dejado
+explícitamente pendientes: qué pasa con el código de un turno que se
+cancela o se reprograma, y qué pasa con un código que simplemente vence sin
+que nadie lo haya tocado. Para lo primero se agregó
+`AccessCodeService.revokeForAppointment`, que busca el código activo del
+turno, intenta eliminarlo de la cerradura y —sin importar si esa llamada
+tuvo éxito— lo marca como anulado; el propio ticket es explícito en que una
+falla de la API de TTLock al eliminar el passcode no debe impedir la
+anulación, porque el código de todos modos dejará de ser válido cuando
+venza su ventana, la misma filosofía de "la integración física nunca
+bloquea la operación de negocio" que ya regía la generación desde TASK-56,
+ahora aplicada en sentido inverso. Este método se enganchó en los tres
+puntos donde un turno puede dejar de tener vigente su horario original:
+`AppointmentsService.cancel`, `cancelForAbsence` (la cancelación masiva por
+ausencia del profesional) y `rescheduleCore` (compartido por la
+reprogramación individual y la reorganización de agenda).
+
+En la reprogramación, la regeneración del código para la nueva fecha no es
+incondicional: el propio ticket la redacta como una única rama —"si el
+turno tiene un código activo, invalidarlo y generar uno nuevo"—, no como
+dos pasos independientes. Un turno que todavía no fue confirmado nunca tuvo
+un código activo, porque la única puerta de entrada a la generación sigue
+siendo la confirmación (TASK-56); generar uno en ese punto habría sido
+prematuro. Para que `rescheduleCore` supiera si correspondía generar sin
+repetir la lectura que `revokeForAppointment` ya hacía internamente, este
+último se diseñó para devolver un booleano en lugar de `void`, reutilizando
+esa única consulta en el punto de llamada.
+
+El barrido de expiración (`AccessCodeExpirationCron`), *placeholder* desde
+TASK-45, se completó como una red de seguridad deliberadamente
+independiente de `revokeForAppointment`: el propio ticket aclara que, aun
+si los enganches de cancelación o reprogramación fallan al eliminar el
+código en TTLock, el cron debe eliminarlo cuando venza su ventana de
+validez. Eso lo obliga a recorrer `CODIGO_ACCESO` por fecha de vencimiento
+en lugar de por turno, y a no generar ningún reemplazo —su única
+responsabilidad es limpiar lo vencido—, así que se implementó como una
+lectura y una escritura propias en lugar de reutilizar el método de
+revocación. Cada código vencido que logra eliminarse (o cuyo intento de
+eliminación falla) se marca como expirado igualmente y queda registrado en
+la traza de auditoría con la acción `ACCESS_CODE_EXPIRED` —traducción al
+inglés del "EXPIRACION_CODIGO" del ticket, siguiendo la misma convención
+que ya fijan `WAITLIST_OFFER_EXPIRED` o `REMINDER_SENT` en el resto del
+código—, el único punto de este ticket con un criterio de aceptación
+explícito de auditoría: la revocación por cancelación o reprogramación no
+generó un asiento propio, porque tampoco lo tiene la generación desde
+TASK-56 y no había precedente en el módulo para agregarlo unilateralmente.
+
+El método que registra una falla de `LockPort` se generalizó para
+distinguir entre una generación y una revocación fallidas en lugar de
+duplicar la lógica de registro de errores, y de paso ganó la posibilidad de
+referenciar el `CODIGO_ACCESO` concreto que no pudo eliminarse —algo que la
+ruta de generación nunca necesitó, porque en ese punto todavía no existe
+ninguna fila que referenciar. La resolución del identificador de cerradura
+configurado por inquilino, hasta entonces un método privado usado sólo por
+la generación, se extrajo a una función compartida en cuanto el cron de
+expiración se convirtió en su segundo llamador, en lugar de tolerar una
+segunda copia de esa misma lógica.
+
+Figura pendiente: diagrama de estados de `CODIGO_ACCESO` con sus tres
+transiciones hacia un estado terminal (activo → anulado por cancelación,
+activo → anulado por reprogramación seguido de un nuevo código activo para
+la fecha nueva, activo → expirado por el barrido del cron), señalando en
+cada una que la eliminación en la cerradura es un intento de mejor
+esfuerzo que nunca bloquea la transición de estado.
+
 ## 4.9 Endurecimiento, cumplimiento y piloto
 
 Antes de continuar con los módulos siguientes se realizó una auditoría del
