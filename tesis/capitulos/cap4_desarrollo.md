@@ -4392,6 +4392,98 @@ escrituras —alta, edición y borrado— quedaron auditadas dentro de la misma
 transacción interactiva que las ejecuta, con el mismo criterio que ya usa
 el ABM de feriados.
 
+## 4.7 Cerradura TTLock
+
+El Módulo 6 se abrió con el adaptador de la cerradura electrónica (P6.1,
+TASK-55), la pieza que conecta el sistema con la plataforma abierta de
+TTLock para instalar, verificar y eliminar códigos de acceso temporales. El
+puerto `LockPort`, ya declarado desde la fase de Fundaciones (TASK-18) con
+sus tres operaciones —crear un código temporal, verificar si quedó
+instalado en la cerradura y eliminarlo—, recibió en esta tarea su primera
+implementación real, `TTLockAdapter`, reemplazando al adaptador *stub* que
+lo resolvía desde el inicio del proyecto. La firma del puerto no cambió: la
+descripción del ticket sugería que la creación del código recibiera el PIN
+como parámetro, pero el diseño ya vigente delega la generación del PIN en
+el propio adaptador —una decisión de una fase anterior que esta tarea
+sostuvo en lugar de revisar, porque cambiarla habría alterado el contrato
+que ya consumían las pruebas de integración del puerto—; el PIN se genera
+con `randomInt` del módulo `node:crypto` y no con `Math.random`, por ser un
+valor que habilita el acceso físico a la clínica.
+
+La autenticación contra la TTLock Open Platform sigue el flujo que describe
+el propio ticket, una concesión de credenciales de cliente de OAuth 2.0, en
+lugar de la concesión de contraseña que usa la plataforma real de TTLock en
+producción: el ticket enumera explícitamente `client_id`/`client_secret`
+como las únicas credenciales por inquilino, sin usuario ni contraseña de
+cuenta TTLock, y esta simplificación queda documentada en el propio código
+como una decisión deliberada, no como un vacío. Las credenciales son por
+inquilino y no una configuración global del sistema —a diferencia de
+`OpenAiAdapter` o del adaptador de WhatsApp, cuyos puertos no llevan ningún
+identificador de inquilino del que colgar una credencial—, porque cada
+clínica es dueña de su propia cerradura y de su propia cuenta de la
+plataforma; se leen mediante `ConfigTenantService` bajo una única clave,
+`ttlock_config`, que agrupa `client_id`, `client_secret`, el identificador
+de la cerradura y el del gateway en un solo objeto por inquilino en lugar
+de cuatro claves sueltas. El token de acceso se cachea en memoria por
+organización y se renueva automáticamente antes de expirar; las
+credenciales mismas se releen en cada llamada en lugar de cachearse junto
+con el token, para que un cambio de secreto por parte de la clínica surta
+efecto en la próxima llamada sin esperar un vencimiento. Ni el token, ni el
+secreto del cliente, ni el PIN llegan nunca a una línea de log: cada
+mensaje de error registra únicamente la operación, el código HTTP y el
+mensaje propio de TTLock. El adaptador contempla las dos formas en que la
+plataforma de TTLock informa un error —un rechazo a nivel HTTP y un sobre
+`{errcode, errmsg}` propio que puede acompañar una respuesta 200— y en
+ambos casos lanza un error descriptivo que expone el código HTTP de la
+respuesta, tal como pide el criterio de aceptación del ticket.
+
+El modelo de datos `CODIGO_ACCESO` (`AccessCode`), que el diagrama
+entidad-relación asocia al turno, no existía todavía al comenzar esta
+tarea: la descripción del ticket da por hecho que TASK-34 ya lo había
+preparado, pero lo que esa tarea efectivamente dejó listo, según su propio
+comentario en el esquema, fue únicamente la existencia de `Appointment`
+como destino posible de esa clave foránea, no la tabla en sí. La
+documentación acumulada en el propio repositorio —en el modelo `LockLog`,
+en el módulo de códigos de acceso y en el tipo de notificación de error de
+cerradura— asignaba de forma consistente y explícita la creación de
+`AccessCode` a esta misma tarea, así que se resolvió a favor de esa
+evidencia interna en lugar de la referencia más superficial del ticket.
+`AccessCode` se modela como hijo de `Appointment` y sin columna de
+organización propia, el mismo patrón que `License` o `WorkingHour`, porque
+tiene un único padre acotado por inquilino del que puede heredar esa
+garantía. Su incorporación resolvió, de paso, el "estado transicional" que
+`LockLog` arrastraba desde TASK-34: las columnas que apuntaban al turno y
+al código de acceso eran referencias documentadas a tablas que todavía no
+existían, y ahora se cablean como claves foráneas reales al mismo tiempo
+—una sin la otra no habilitaba ninguna lectura por inquilino, porque el
+inquilino de un evento de cerradura sólo puede resolverse a través del
+turno—, con la columna que antes se llamaba `turnoId` renombrada a
+`appointmentId` al dejar de ser un marcador de posición. Se prefirió que
+ambas relaciones eliminen en cascada en lugar de restringir el borrado,
+distinto del criterio que rige la traza de auditoría, porque `LockLog` es
+un registro operativo sin la obligación de cumplimiento normativo que sí
+pesa sobre `AuditLog`, y porque restringir el borrado habría reproducido el
+mismo conflicto de orden de eliminación que TASK-90 debió resolver sobre
+`Notification`.
+
+Quedó fuera de esta tarea, tal como el propio ticket lo declara, todo lo
+que decide *cuándo* crear o eliminar un código: la integración con el flujo
+de turnos es TASK-56, el barrido real de vencimiento es TASK-57, y la
+tolerancia a fallos de conectividad con reintentos es TASK-59. El trabajo
+de esta tarea cerró, en cambio, dos comentarios que la fase de
+Notificaciones y Scheduler (Módulo 4) había dejado pendientes de esta
+misma tarea: el *placeholder* de `AccessCodeExpirationCron` (TASK-45) y el
+tipo de notificación `LOCK_ERROR` (TASK-76), ambos actualizados para
+reflejar que el modelo y el adaptador ya existen aunque su llamador
+concreto todavía no.
+
+Figuras pendientes: diagrama de secuencia de la creación de un código
+temporal (adaptador → autenticación OAuth 2.0 cacheada por organización →
+generación del PIN → alta del passcode en TTLock → persistencia en
+`AccessCode`) y diagrama entidad-relación actualizado del subdominio de
+cerradura (`AccessCode` como hijo de `Appointment`, y `LockLog` con sus dos
+claves foráneas ya reales hacia `Appointment` y `AccessCode`).
+
 ## 4.9 Endurecimiento, cumplimiento y piloto
 
 Antes de continuar con los módulos siguientes se realizó una auditoría del
