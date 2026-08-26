@@ -126,7 +126,7 @@ antes de esta tarea. Lint y verificación de tipos sin errores.
   `OpenAiAdapter` y las aserciones condicionadas por invariante de
   dominio), señalando que ambas ramas ejecutan el mismo código de prueba y
   sólo difieren en qué proveedor queda conectado al arrancar el módulo.
-  Sección 3.2.5 Capa conversacional y WhatsApp.
+  Sección 4.6 Capa conversacional y WhatsApp.
 
 ## Componente y referencia
 

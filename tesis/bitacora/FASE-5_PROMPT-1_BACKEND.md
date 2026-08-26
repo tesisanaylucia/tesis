@@ -231,7 +231,7 @@ stub sin ningún punto que lo siga usando es código muerto.
 - Diagrama conceptual del ciclo de reintento del adaptador de IA (llamada
   → error 429/5xx → backoff exponencial → reintento, hasta tres intentos
   → error descriptivo final; con la rama de error no reintentable saliendo
-  directo). Sección 3.2.5 Capa conversacional y WhatsApp.
+  directo). Sección 4.6 Capa conversacional y WhatsApp.
 
 ## Componente y referencia
 

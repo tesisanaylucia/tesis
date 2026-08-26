@@ -209,7 +209,7 @@ se tocaron puertos ni adaptadores.
 ## Figuras pendientes
 
 Ninguna nueva. La corrección no introduce un flujo que la tesis no describa
-ya: ajusta el paso del algoritmo de disponibilidad documentado en 3.2.3 y la
+ya: ajusta el paso del algoritmo de disponibilidad documentado en 4.4 y la
 regla de doble franja documentada en la misma subsección.
 
 ## Componente y referencia

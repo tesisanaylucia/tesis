@@ -380,19 +380,19 @@ SYSTEM, conversión de errores— en una función privada común.
 - Diagrama de secuencia del flujo de reserva completo, desde la
   identificación por documento hasta la confirmación del resumen del
   turno, señalando en qué punto se intercala la verificación de
-  consentimiento y qué ocurre en cada una de sus dos ramas. Sección 3.2.5
+  consentimiento y qué ocurre en cada una de sus dos ramas. Sección 4.6
   Capa conversacional y WhatsApp.
 - Diagrama comparativo de los cuatro flujos que parten de la consulta de
   turnos activos del paciente (consultar, confirmar, reprogramar,
   cancelar), señalando el tramo común y el punto en que cada uno se
   bifurca, y las dos salidas de la cancelación (rechazo por anticipación
   insuficiente frente a cancelación efectiva seguida del ofrecimiento de
-  reprogramación). Sección 3.2.5 Capa conversacional y WhatsApp.
+  reprogramación). Sección 4.6 Capa conversacional y WhatsApp.
 - Diagrama de la composición del system prompt de un turno (texto base
   del inquilino o plantilla por defecto, con el nombre de la organización
   interpolado, más el manual de flujos no sobrescribible, con la fecha
   del día interpolada), señalando qué mitad es configurable y cuál no.
-  Sección 3.2.5 Capa conversacional y WhatsApp.
+  Sección 4.6 Capa conversacional y WhatsApp.
 
 ## Componente y referencia
 

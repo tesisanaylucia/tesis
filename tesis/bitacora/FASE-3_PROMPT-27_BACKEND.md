@@ -190,7 +190,7 @@ adaptadores. La corrección no agrega ni altera columnas.
 ## Figuras pendientes
 
 Ninguna nueva. La corrección no introduce un flujo que la tesis no describa
-ya: agrega una verificación al algoritmo de reasignación documentado en 3.2.3.
+ya: agrega una verificación al algoritmo de reasignación documentado en 4.4.
 
 ## Componente y referencia
 

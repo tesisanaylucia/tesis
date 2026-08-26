@@ -248,7 +248,7 @@ que sea visible desde el código y no sólo desde esta bitácora.
 
 Ninguna nueva. La corrección no agrega un flujo que la tesis no describa ya:
 refina el alcance de la retención introducida en TASK-80, que ya está
-documentada en 3.2.3.
+documentada en 4.4.
 
 ## Componente y referencia
 

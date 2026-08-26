@@ -210,14 +210,14 @@ integración.
   solo y rama con varios, esta última con la pregunta al paciente →
   registro de la solicitud con estado pendiente → notificación al
   profesional en la app → confirmación literal al paciente), señalando
-  que el sistema no genera receta alguna en ningún punto. Sección 3.2.5
+  que el sistema no genera receta alguna en ningún punto. Sección 4.6
   Capa conversacional y WhatsApp.
 - Diagrama de las dos vías del manejo de mensajes fuera de alcance
   (mensaje entrante → detección de urgencia, que corta antes de llamar al
   modelo y responde con el texto de urgencia; respuesta del modelo →
   regla de contenido clínico, que reemplaza con el texto de fuera de
   alcance), señalando por qué la primera se evalúa sobre el mensaje del
-  paciente y la segunda sobre la respuesta del bot. Sección 3.2.5 Capa
+  paciente y la segunda sobre la respuesta del bot. Sección 4.6 Capa
   conversacional y WhatsApp.
 
 ## Componente y referencia

@@ -292,17 +292,17 @@ integración.
   del inquilino), señalando los tres motivos de rechazo y los tres puntos
   del sistema que consultan la misma regla: la verificación previa del
   chatbot, la reserva y la revalidación de la reprogramación. Sección
-  3.2.5 Capa conversacional y WhatsApp.
+  4.6 Capa conversacional y WhatsApp.
 - Diagrama de secuencia del flujo de reserva con la verificación previa
   intercalada, mostrando sus tres salidas: continuar hacia la
   disponibilidad, finalizar la reserva con ese profesional y ofrecer otro,
   o pedirle al paciente la fecha de nacimiento ausente, completarla y
-  volver a verificar. Sección 3.2.5 Capa conversacional y WhatsApp.
+  volver a verificar. Sección 4.6 Capa conversacional y WhatsApp.
 - Diagrama del flujo de consulta general (pregunta del paciente →
   búsqueda por superposición de palabras sobre la tabla del inquilino →
   rama con coincidencia, que responde con la respuesta cargada, y rama
   sin coincidencia, que devuelve el texto fijo para enviar literalmente),
-  señalando que ambas ramas son resultados exitosos. Sección 3.2.5 Capa
+  señalando que ambas ramas son resultados exitosos. Sección 4.6 Capa
   conversacional y WhatsApp.
 
 ## Componente y referencia

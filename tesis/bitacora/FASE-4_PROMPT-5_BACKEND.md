@@ -187,7 +187,7 @@ Una figura nueva: diagrama de estados de una oferta de lista de espera
 transición — respuesta real por WhatsApp aún no construida, celular
 ausente, vencimiento del cron de timeout— y qué ocurre del lado del
 recorrido en cada caso). Agregada a `figuras_pendientes.md` como figura 27,
-sección 3.2.4.
+sección 4.5.
 
 Además, la Figura 23 (diagrama de secuencia del algoritmo de reasignación
 automática, registrada en Fase 3 y todavía sin dibujar) describía el

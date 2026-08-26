@@ -3,8 +3,9 @@
 Marcadores `[CITA: tema]` insertados en el cuerpo del texto que todavía no
 tienen una fuente bibliográfica verificada asociada. Cada fila se retira de
 esta tabla cuando la cita real se incorpora al texto (reemplazando el
-marcador por el número de cita `[N]` correspondiente, según
-`guia_estilo.md`) y se agrega a la sección 5. Referencias.
+marcador por la cita autor-año en formato APA — "(Autor, Año)" — según
+`guia_estilo.md`, nunca por numeración correlativa entre corchetes) y se
+agrega, con su entrada completa, a la sección 6. Referencias.
 
 No se cargó ninguna fuente real todavía: esta tabla es exclusivamente un
 registro de qué afirmaciones necesitan respaldo bibliográfico y de qué

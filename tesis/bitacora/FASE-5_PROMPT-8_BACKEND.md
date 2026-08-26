@@ -156,11 +156,11 @@ integración.
   extracción del mensaje de texto → resolución de la organización por el
   número receptor → `OrquestadorService.procesar` → respuesta enviada por
   `MessagingPort.sendMessage`), con la rama de firma inválida y la rama de
-  número sin mapeo. Sección 3.2.5 Capa conversacional y WhatsApp.
+  número sin mapeo. Sección 4.6 Capa conversacional y WhatsApp.
 - Diagrama entidad-relación de `WhatsappPhoneNumber`, señalando que el
   campo que se busca (`phoneNumberId`) es único en toda la base y no por
   organización, a diferencia del resto de los modelos acotados por
-  inquilino del proyecto. Sección 3.2.5 Capa conversacional y WhatsApp.
+  inquilino del proyecto. Sección 4.6 Capa conversacional y WhatsApp.
 
 ## Componente y referencia
 

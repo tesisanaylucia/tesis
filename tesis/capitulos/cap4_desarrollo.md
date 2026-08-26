@@ -1,14 +1,14 @@
-# Capítulo 3: Solución PSIQUE
+# Capítulo 4: Desarrollo e Implementación
 
 > Documento en construcción. Las subsecciones se completan de forma
 > incremental a medida que la skill `documentacion-tesis` integra el
-> trabajo validado de cada fase, en ambos repos (backend y móvil). El
-> contenido de este archivo corresponde a 3.2 Proceso de desarrollo; 3.1 y
-> 3.3 se redactan aparte cuando corresponda.
+> trabajo validado de cada fase. Este capítulo cubre exclusivamente la
+> implementación del backend (4.1–4.7, 4.9); no hay implementación de la
+> app móvil aquí — su diseño de prototipo se documenta en el Capítulo 3
+> (§3.7) y su desarrollo queda como trabajo futuro (Capítulo 5). La
+> presentación de la solución (4.10) se redacta aparte cuando corresponda.
 
-## 3.2 Proceso de desarrollo
-
-### 3.2.0 Fundaciones
+## 4.1 Fundaciones
 
 El desarrollo del backend de PSIQUE comenzó por establecer una base
 arquitectónica capaz de sostener, desde el primer módulo de negocio, los
@@ -338,7 +338,7 @@ no recibe ni necesita ningún argumento de organización—, dejando la prueba
 de aislamiento real, contra una base de datos de verdad, a la suite ya
 existente.
 
-### 3.2.1 Profesionales
+## 4.2 Profesionales
 
 El primer módulo de negocio construido sobre las fundaciones fue el de
 Profesionales, y su punto de partida fue el modelado de las entidades de
@@ -887,7 +887,7 @@ por no aportar función alguna en el estado actual del sistema; la disciplina de
 calendario que aquel tratamiento ilustra sigue vigente para el resto de las fechas del
 dominio —ausencias, fecha de nacimiento del paciente—, sólo que ya no se aplica a un campo
 que dejó de existir. La representación de la baja lógica del profesional, por su parte, pasó
-a la marca temporal anulable descripta en 3.2.0, común a profesionales y pacientes.
+a la marca temporal anulable descripta en 4.1, común a profesionales y pacientes.
 
 Una revisión posterior, ya con el motor de turnos en desarrollo, encontró una
 inconsistencia entre P1.1/P1.2 y el criterio de aceptación del chatbot que da
@@ -942,7 +942,7 @@ verificación de la capa de servicio, protege por igual el alta y la edición
 de una matrícula sin necesitar el aislamiento serializable que otros
 invariantes de lectura seguida de escritura de este módulo sí requirieron.
 
-### 3.2.2 Pacientes
+## 4.3 Pacientes
 
 El segundo módulo de negocio siguió el mismo criterio de apertura que el
 anterior: antes de construir la gestión, se estabilizó el modelo de datos. Se
@@ -1814,7 +1814,7 @@ del mismo controlador. La corrección no agregó código de autorización nuevo:
 reutilizó el par de comprobaciones existente, cambiando únicamente cuál de
 las dos protege la escritura de la prioridad.
 
-### 3.2.3 Motor de Turnos
+## 4.4 Motor de Turnos
 
 El módulo de Turnos comenzó, igual que Profesionales y Pacientes antes que él, por
 incorporar al esquema las entidades base del dominio antes de construir servicio o
@@ -2587,7 +2587,7 @@ unilateral, el aviso de cancelación masiva por ausencia de un profesional
 y la oferta de un turno liberado a un candidato de la lista de espera
 armaban su texto a mano, en inglés, en vez de pasar por el motor de
 plantillas de mensajes construido en la fase de notificaciones y
-scheduler (sección 3.2.4). Dos de las cinco claves de ese motor —el aviso
+scheduler (sección 4.5). Dos de las cinco claves de ese motor —el aviso
 de cancelación y la oferta de lista de espera— ya existían con su texto
 en español y ya eran configurables por organización, pero sin ningún
 punto del código que realmente las usara: sólo los dos trabajos
@@ -3024,7 +3024,7 @@ precedente de un mismo recurso bajo dos rutas según el rol que lo consulta,
 cuando el patrón ya establecido para un recurso que ambos roles comparten es
 una única ruta con el rol declarado por operación.
 
-### 3.2.4 Notificaciones y Scheduler
+## 4.5 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
 plantillas de mensajes, el componente sobre el que se apoyan tanto los
@@ -3218,7 +3218,7 @@ estado de placeholder.
 
 La última pieza de este módulo cerró una limitación que había quedado
 declarada desde que se construyó el algoritmo de reasignación automática
-en el módulo de Turnos (sección 3.2.3): la pregunta "¿el candidato de la
+en el módulo de Turnos (sección 4.4): la pregunta "¿el candidato de la
 lista de espera aceptó el turno liberado que se le ofreció?" se resolvía
 detrás de un puerto —`WaitlistResponsePort`— cuyo único adaptador
 existente respondía "no" en el mismo instante en que se lo llamaba,
@@ -3229,7 +3229,7 @@ deliberada, a la espera de que ambas piezas llegaran.
 
 La ventana de tiempo llegó con esta tarea, aunque el canal de WhatsApp
 siga sin existir. El requisito de negocio es el mismo que ya gobierna la
-autocancelación por falta de confirmación (sección 3.2.3): un candidato
+autocancelación por falta de confirmación (sección 4.4): un candidato
 tiene cuatro horas para responder a la oferta de un turno liberado antes
 de que el sistema la dé por vencida y continúe con el siguiente candidato
 de la lista, en el mismo orden de prioridad ya establecido. Sostener esa
@@ -3475,7 +3475,7 @@ de plantillas real, con únicamente la configuración por inquilino simulada,
 y verifica que el mensaje efectivamente enviado contiene la duración de la
 sesión.
 
-### 3.2.5 Capa conversacional y WhatsApp
+## 4.6 Capa conversacional y WhatsApp
 
 El Módulo 5 se abrió con el adaptador de IA (P5.1, TASK-46), la pieza que
 conecta el futuro orquestador del chatbot con un modelo de lenguaje real. El
@@ -3948,7 +3948,7 @@ necesitan exactamente el conjunto de turnos sobre los que el paciente
 todavía puede actuar, y ofrecerle al modelo un turno ya transcurrido sólo
 habilita que el bot proponga cancelarlo. El conjunto de estados
 considerados activos no se enumeró de nuevo sino que se deriva de la
-máquina de estados del turno introducida en 3.2.3, como aquellos desde
+máquina de estados del turno introducida en 4.4, como aquellos desde
 los que la cancelación sigue siendo alcanzable, para que no pueda
 desfasarse de ella en silencio.
 
@@ -3968,7 +3968,7 @@ el *prompt* en esa ocasión. La condición que lo dispara son las
 herramientas que efectivamente tuvieron éxito durante el turno y no el
 texto de la respuesta, de modo que una cancelación rechazada por la
 ventana mínima de anticipación —regla que ya vivía en el servicio de
-turnos desde 3.2.3 y que deliberadamente no se replicó en esta capa— deja
+turnos desde 4.4 y que deliberadamente no se replicó en esta capa— deja
 el turno en pie y no genera ofrecimiento alguno; y una respuesta
 bloqueada por un guardrail nunca recibe el agregado, porque anexarle una
 pregunta reabriría la conversación que la regla acaba de cerrar. Si el
@@ -3998,15 +3998,15 @@ elegido atiende únicamente a mayores, la respuesta a consultas sobre la
 obra social del profesional, y la respuesta a consultas generales
 apoyada en la base de preguntas frecuentes. Ninguna de las tres requirió
 modificar el esquema. El indicador de sólo mayores y el tipo de atención
-del profesional se habían modelado en 3.2.1, la fecha de nacimiento del
+del profesional se habían modelado en 4.2, la fecha de nacimiento del
 paciente y la marca de primera sesión del vínculo con cada profesional en
-3.2.2, y la tabla de preguntas frecuentes junto con su búsqueda por
+4.3, y la tabla de preguntas frecuentes junto con su búsqueda por
 superposición de palabras se habían creado al construir el catálogo de
 herramientas. Lo que faltaba no era estructura de datos sino exponer esos
 hechos a la conversación en el instante en que el paciente los necesita.
 
 La validación de edad ilustra esa diferencia con precisión. La regla ya
-se aplicaba al reservar desde 3.2.3, de modo que ningún turno podía
+se aplicaba al reservar desde 4.4, de modo que ningún turno podía
 crearse en violación de ella; pero se aplicaba al final del recorrido,
 cuando el paciente ya había elegido profesional, consultado los horarios
 libres y escogido uno, y el resultado era un error tras una conversación
@@ -4028,8 +4028,8 @@ acceso a la base, que recibe las dos columnas del profesional, la fecha
 de nacimiento del paciente y la edad mínima del inquilino, y devuelve el
 motivo del rechazo o su ausencia; los tres consumidores leen esa única
 definición. Es el mismo tratamiento que ya habían recibido la máquina de
-estados del turno en 3.2.3 y la regla de inactividad del paciente en
-3.2.2. La edad mínima se recibe como parámetro en lugar de leerse dentro
+estados del turno en 4.4 y la regla de inactividad del paciente en
+4.3. La edad mínima se recibe como parámetro en lugar de leerse dentro
 de la regla, porque es un valor de configuración por inquilino y una regla
 que fuera a buscarlo necesitaría la base de datos, perdiendo la propiedad
 que la vuelve verificable de forma aislada.
@@ -4043,7 +4043,7 @@ lugar de depender de cómo el modelo parafrasee una oración recibida desde
 el servidor. La separación del tercer caso respecto del segundo es
 deliberada y corrige el tratamiento anterior, que los confundía: la fecha
 de nacimiento es opcional en el esquema precisamente porque los registros
-históricos incorporados en 3.2.2 con frecuencia no la traen, y decirle a
+históricos incorporados en 4.3 con frecuencia no la traen, y decirle a
 un adulto que no alcanza la edad mínima porque su ficha está incompleta
 sería un error de información y no una restricción legítima.
 
@@ -4072,8 +4072,8 @@ La lista de datos que una reserva exige —documento, fecha de nacimiento y
 contacto de emergencia, de los cuales sólo los dos últimos pueden faltar,
 por ser el documento una columna no nula— quedó también extraída a un
 módulo puro compartido. Estaba escrita tres veces: en la lectura de estado
-de datos del paciente construida en 3.2.2, en la validación previa de la
-reserva de 3.2.3 y en esta herramienta que ahora los completa. La
+de datos del paciente construida en 4.3, en la validación previa de la
+reserva de 4.4 y en esta herramienta que ahora los completa. La
 consecuencia de un desfasaje entre esas copias sería la misma que en el
 caso de la regla de edad, sólo que un paso más tarde: un bot que completa
 lo que se le dijo que faltaba y una reserva que después rechaza por un
@@ -4094,7 +4094,7 @@ mejorar la conversación, pero nunca puede ser lo que garantiza una regla.
 Una consideración análoga determinó qué predicado define a un "paciente
 nuevo" a estos efectos. El vínculo entre paciente y profesional lleva
 tanto un tipo —nuevo o recurrente— como una marca de primera sesión, y la
-regla de inactividad de 3.2.2 degrada el tipo a "nuevo" cuando el
+regla de inactividad de 4.3 degrada el tipo a "nuevo" cuando el
 paciente deja de concurrir durante más de un año, mientras que la marca
 de primera sesión permanece en falso una vez que esa sesión ocurrió. Se
 adoptó la marca de primera sesión, que es la que ya usaba la reserva:
@@ -4107,7 +4107,7 @@ La consulta sobre obras sociales se resolvió ampliando el listado de
 profesionales que el flujo de reserva ya invoca, en lugar de agregar una
 herramienta propia. La lectura que sirve ese listado ya cargaba, con cada
 profesional, las obras sociales que acepta —según el modelo de aceptación
-descrito en 3.2.0, donde la obra social es un catálogo global sin dueño y
+descrito en 4.1, donde la obra social es un catálogo global sin dueño y
 lo que pertenece a un profesional es su aceptación—, el flujo de reserva
 invoca ese listado de todos modos, y la clínica cuenta con un puñado de
 profesionales. Una herramienta adicional habría sido un segundo viaje a
@@ -4392,7 +4392,7 @@ escrituras —alta, edición y borrado— quedaron auditadas dentro de la misma
 transacción interactiva que las ejecuta, con el mismo criterio que ya usa
 el ABM de feriados.
 
-### 3.2.8 Endurecimiento, cumplimiento y piloto
+## 4.9 Endurecimiento, cumplimiento y piloto
 
 Antes de continuar con los módulos siguientes se realizó una auditoría del
 estado real de la base de datos de desarrollo, contrastando tanto el

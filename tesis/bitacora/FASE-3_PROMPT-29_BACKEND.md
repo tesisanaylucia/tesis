@@ -125,7 +125,7 @@ ningún otro punto de acceso HTTP.
 ## Figuras pendientes
 
 Ninguna nueva. La corrección amplía el alcance de un rol sobre una ruta ya
-descripta en 3.2.3, sin introducir un flujo o entidad nuevos que la tesis no
+descripta en 4.4, sin introducir un flujo o entidad nuevos que la tesis no
 documente todavía.
 
 ## Componente y referencia

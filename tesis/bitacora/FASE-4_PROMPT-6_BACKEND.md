@@ -19,10 +19,10 @@ creación de una notificación no es una operación expuesta por HTTP en sí
 misma, sino un efecto colateral que dos servicios ya existentes disparan
 cuando ocurre el evento que describen: `AppointmentsService`, al cancelar
 un turno —tanto por la vía ordinaria como por la cancelación masiva que
-dispara la ausencia de un profesional (sección 3.2.3)—, y
+dispara la ausencia de un profesional (sección 4.4)—, y
 `WaitlistReassignmentService`, al reservar el turno liberado para el
 candidato de la lista de espera que aceptó la oferta (también sección
-3.2.3).
+4.4).
 
 El requisito nombra además dos orígenes de notificación que todavía no
 tienen ningún servicio del que colgarse: una solicitud de receta nueva por
@@ -30,7 +30,7 @@ parte de un paciente, y una alerta ante un error de la cerradura
 inteligente. Ambos quedaron representados en el enumerado de tipos de
 notificación, pero sin ningún punto de disparo real: la entidad de
 solicitud de receta existe en el esquema desde una fase muy anterior del
-proyecto (sección 3.2.2) pero nunca tuvo un servicio propio que la
+proyecto (sección 4.3) pero nunca tuvo un servicio propio que la
 gestionara, y la entidad de código de acceso de la cerradura todavía no
 existe en absoluto, a la espera de la fase dedicada a la integración con
 TTLock.
@@ -178,7 +178,7 @@ dos referencias opcionales hacia turno y solicitud de receta, y los dos
 puntos de disparo ya conectados —cancelación de turno y reserva por
 reasignación— frente a los dos todavía sin conectar —solicitud de receta y
 error de cerradura, señalados como pendientes de una fase posterior).
-Agregada a `figuras_pendientes.md` como figura 28, sección 3.2.4.
+Agregada a `figuras_pendientes.md` como figura 28, sección 4.5.
 
 ## Marco Teórico ofrecido
 
@@ -207,8 +207,8 @@ título de la sección 2.4 se amplió para nombrar el tema nuevo.
 - Ticket: TASK-76 (P7.b — Backend: modelo Notificacion y endpoint
   GET /notificaciones para la app del profesional). Numerado bajo la fase
   de Jira 7 (App móvil del profesional) pero de componente backend puro; se
-  documentó en esta subsección (3.2.4 Notificaciones y Scheduler) en lugar
-  de 3.2.7, por decisión de la usuaria, dado que `mapa_fases_capitulos.md`
+  documentó en esta subsección (4.5 Notificaciones y Scheduler) en lugar
+  de 3.7, por decisión de la usuaria, dado que `mapa_fases_capitulos.md`
   asigna la fase 7 íntegramente al componente móvil y esta tarea es la
   extensión del dominio de notificaciones ya cubierto aquí, con un
   disparador distinto (la app del profesional en vez de WhatsApp) en lugar

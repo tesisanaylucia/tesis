@@ -101,7 +101,7 @@ corrección.
 ## Alternativas descartadas
 
 - **Fusionar esta documentación dentro de la entrada de TASK-93** (la
-  corrección más cercana en el tiempo dentro de 3.2.0 que también agrega
+  corrección más cercana en el tiempo dentro de 4.1 que también agrega
   un `CHECK` a mano): descartada porque TASK-93 y la migración de hardening
   son cambios distintos, con commits, ramas y motivación propias —
   agruparlos habría oscurecido cuál commit corresponde a cuál ticket.

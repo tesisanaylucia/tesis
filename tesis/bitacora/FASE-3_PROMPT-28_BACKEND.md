@@ -151,7 +151,7 @@ ningún punto de acceso HTTP: la corrección no altera el contrato de la API.
 ## Figuras pendientes
 
 Ninguna nueva. La corrección completa el algoritmo de reasignación ya descripto
-en 3.2.3 sin introducir un flujo que la tesis no documente.
+en 4.4 sin introducir un flujo que la tesis no documente.
 
 ## Componente y referencia
 

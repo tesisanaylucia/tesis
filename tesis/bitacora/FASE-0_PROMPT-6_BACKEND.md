@@ -279,7 +279,7 @@ menor que el de la consulta adicional que evita.
 ## Figuras pendientes
 
 - Diagrama entidad-relación actualizado del esquema, con las claves foráneas
-  reales y las claves compuestas señaladas. Corresponde a la subsección 3.2.0.
+  reales y las claves compuestas señaladas. Corresponde a la subsección 4.1.
 
 ## Componente y referencia
 

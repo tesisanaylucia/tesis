@@ -268,12 +268,12 @@ repetir el ciclo trabado.
   historial + system prompt del inquilino → `AIPort.processMessage` →
   ¿`tool_use`? → ejecución de la herramienta → `tool_result` agregado al
   historial → nueva llamada a `AIPort`, repetido hasta texto plano o hasta
-  el tope de diez vueltas). Sección 3.2.5 Capa conversacional y WhatsApp.
+  el tope de diez vueltas). Sección 4.6 Capa conversacional y WhatsApp.
 - Diagrama de estados de una sesión de conversación en
   `ConversationSessionStore` (sin historial → historial activo tras el
   primer mensaje → refrescada en cada mensaje nuevo → expirada y eliminada
   en la primera lectura posterior al umbral de inactividad del inquilino).
-  Sección 3.2.5.
+  Sección 4.6.
 
 ## Componente y referencia
 

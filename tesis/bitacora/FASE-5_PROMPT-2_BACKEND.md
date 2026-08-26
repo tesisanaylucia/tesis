@@ -202,9 +202,9 @@ a esta tarea.
 - Diagrama de la composición de una tool (`defineTool`): entrada cruda del
   modelo → `validateToolInput` → `resolveSystemActor` → llamada al servicio
   de dominio → `runToolHandler` → `{success, data}` o `{success, error}`,
-  nunca una excepción. Sección 3.2.5 Capa conversacional y WhatsApp.
+  nunca una excepción. Sección 4.6 Capa conversacional y WhatsApp.
 - Diagrama entidad-relación de `Faq` y `PrescriptionRequest` dentro del
-  esquema, junto al resto del subdominio de Pacientes/Turnos. Sección 3.2.5.
+  esquema, junto al resto del subdominio de Pacientes/Turnos. Sección 4.6.
 
 ## Componente y referencia
 

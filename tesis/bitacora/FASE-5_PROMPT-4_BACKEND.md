@@ -239,7 +239,7 @@ que casualmente sólo usara "un".
   llamar a `AIPort` ni a ninguna herramienta] / [continúa el ciclo normal
   de `OrquestadorService`, TASK-48] → respuesta final en texto plano →
   `checkResponse` → texto (reemplazado o intacto) guardado en el
-  historial y devuelto. Sección 3.2.5 Capa conversacional y WhatsApp.
+  historial y devuelto. Sección 4.6 Capa conversacional y WhatsApp.
 
 ## Componente y referencia
 
