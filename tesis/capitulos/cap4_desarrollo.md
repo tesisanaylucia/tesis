@@ -4669,6 +4669,71 @@ cerradura) se corrigió en el propio listado de figuras pendientes para
 reflejar este cambio de esquema, ya que el diagrama en sí todavía no se
 había dibujado.
 
+La quinta y última tarea del módulo (P6.5, TASK-59) cerró la pregunta que
+las cuatro anteriores habían dejado abierta a propósito: qué pasa cuando la
+cadena nube → TTLock Open Platform → Gateway WiFi G2 → cerradura falla de
+forma transitoria, no definitiva. `TTLockAdapter.createTemporaryCode` y
+`.verifyCodeInstalled` —no `.deleteCode`, fuera del alcance del propio
+ticket— pasaron a ejecutar toda su operación, resolución de token incluida,
+dentro de una política de reintentos con backoff exponencial y un máximo de
+tres intentos totales, la misma lectura que ya había fijado TASK-46 sobre
+una frase idéntica del ticket del adaptador de IA ("máximo 3 intentos"). El
+adaptador ganó además, por primera vez desde TASK-55, un timeout por
+pedido: sin él no existía ningún error de "tiempo agotado" que la política
+de reintentos pudiera tratar como transitorio. `LockOperationError` ganó un
+campo `transient`, fijado en el propio punto donde se lanza cada error
+—verdadero para un 429, un 5xx o un timeout/error de red; falso para
+cualquier otro 4xx, o para el sobre `{errcode, errmsg}` propio de TTLock
+sobre una respuesta 200—, en lugar de que cada punto que captura el error
+tuviera que volver a inferirlo.
+
+El ticket pide la política de reintentos "en el TTLockAdapter", pero sólo
+`AccessCodeService` conoce el turno al que pertenece cada intento —el
+puerto en sí sólo conoce el identificador de la cerradura—, así que el
+registro de cada intento no podía vivir dentro del propio adaptador. Se
+resolvió agregando un callback opcional a la firma del puerto,
+`onAttempt`, que `TTLockAdapter` invoca después de cada intento sin
+conocer para qué sirve, y que `AccessCodeService` usa para escribir una
+fila `CODE_ATTEMPT` en `LockLog` por cada uno —el mismo evento que el
+propio comentario de `LockLog.attemptNumber` ya anticipaba desde TASK-55—,
+en lugar de mover el bucle de reintentos al servicio sólo para tener a
+mano el contexto que necesitaba registrar.
+
+Cuando los reintentos se agotan, o `LockPort` nunca llega a llamarse por
+falta de configuración, el comportamiento seguía siendo el de TASK-56: sin
+código activo, sin envío al paciente, turno de todos modos CONFIRMADO. Lo
+nuevo es que la falla definitiva pasó a registrarse en dos lugares en
+lugar de uno: además de la fila `ACCESS_CODE_ERROR` que `LockLog` ya
+recibía desde TASK-56 (ahora con el número de intento real que `LockPort`
+hizo, no siempre uno), se agregó un asiento equivalente en
+`REGISTRO_AUDITORIA` — el propio ticket nombra esa tabla por su nombre real
+en español, distinto de la mención genérica en minúscula que usa para el
+registro de cada intento, y esa distinción textual es la que separó qué
+falla escribe dónde. La notificación al profesional se mantuvo sobre el
+mecanismo ya existente (`InAppNotificationsService`/
+`NotificationType.LOCK_ERROR`) en lugar de `MessagingPort`, como pide el
+ticket textualmente: ni `Professional` ni `User` tienen un número de
+celular en este esquema, la misma limitación que TASK-58 ya había
+encontrado para la entrega del PIN ad-hoc.
+
+El asiento nuevo de `AuditLog` se dejó deliberadamente fuera de la
+transacción que marca el código anulado, una excepción a la regla general
+del proyecto de atar cada asiento de auditoría a la mutación que describe:
+se trata de información diagnóstica sobre una falla de la integración
+física, de la misma naturaleza de mejor esfuerzo que el `LockLog` con el
+que siempre viaja, no el registro de cumplimiento de "qué cambió" — ese ya
+queda correctamente atado a su propia transacción en el asiento de la
+transición del turno que disparó todo el flujo.
+
+Figuras pendientes: diagrama de secuencia de la política de reintentos de
+`TTLockAdapter` (intento → ¿error transitorio? → aviso del intento al
+llamador vía `onAttempt` → espera exponencial → siguiente intento, hasta
+tres, o error definitivo sin reintentar), contrastado con la Figura 29 del
+adaptador de IA; diagrama de secuencia de la falla definitiva de
+generación (reintentos agotados → sin código activo ni envío → asiento en
+`LockLog` y en `REGISTRO_AUDITORIA` → notificación al profesional → turno
+igual CONFIRMADO), contrastado con la Figura 48.
+
 ## 4.9 Endurecimiento, cumplimiento y piloto
 
 Antes de continuar con los módulos siguientes se realizó una auditoría del
