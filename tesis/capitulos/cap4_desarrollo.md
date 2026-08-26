@@ -4451,7 +4451,11 @@ evidencia interna en lugar de la referencia más superficial del ticket.
 `AccessCode` se modela como hijo de `Appointment` y sin columna de
 organización propia, el mismo patrón que `License` o `WorkingHour`, porque
 tiene un único padre acotado por inquilino del que puede heredar esa
-garantía. Su incorporación resolvió, de paso, el "estado transicional" que
+garantía (P6.4/TASK-58, más adelante en esta misma sección, revisó este
+diseño: un código sin turno —la apertura ad-hoc— no tiene ningún padre del
+que heredar el acotamiento, así que `AccessCode` terminó llevando su propia
+columna de organización). Su incorporación resolvió, de paso, el "estado
+transicional" que
 `LockLog` arrastraba desde TASK-34: las columnas que apuntaban al turno y
 al código de acceso eran referencias documentadas a tablas que todavía no
 existían, y ahora se cablean como claves foráneas reales al mismo tiempo
@@ -4592,6 +4596,78 @@ activo → anulado por reprogramación seguido de un nuevo código activo para
 la fecha nueva, activo → expirado por el barrido del cron), señalando en
 cada una que la eliminación en la cerradura es un intento de mejor
 esfuerzo que nunca bloquea la transición de estado.
+
+La cuarta y última tarea declarada del módulo (P6.4, TASK-58) cerró los dos
+procesos que el SRS describe para el Módulo Cerradura Electrónica y que
+todavía no tenían implementación: la entrega del código al paciente una vez
+activo, y la apertura ad-hoc que un profesional o administrador puede
+solicitar ante una falla. Para lo primero, el método privado de
+`AppointmentsService.confirm` que ya disparaba la generación del código
+desde TASK-56 se amplió —sin agregar un segundo punto de enganche— para
+renderizar una nueva plantilla del motor de P4.1 (`ACCESS_CODE_DELIVERY`,
+con el PIN y la fecha del turno) y enviarla al paciente, reutilizando el
+mismo `notifyPatient` que ya usaban la cancelación y la reprogramación. El
+criterio "no enviar si el código no quedó activo" no exigió ninguna
+verificación propia: `generateForAppointment` ya devuelve `null` para
+cualquier desenlace que no termine en una fila activa, así que un resultado
+nulo simplemente nunca alcanza el envío. Deliberadamente, el envío no se
+repite cuando `rescheduleCore` (TASK-57) regenera el código para una
+reprogramación: los criterios de aceptación del ticket sólo cubren la
+confirmación, y el paciente conserva un PIN válido para la fecha anterior
+hasta el instante mismo en que ese método lo anula.
+
+Para la apertura ad-hoc se agregó `AccessCodeService.generateAdhoc`, el
+endpoint nuevo `POST /cerradura/abrir-adhoc` (rol profesional o
+administrador del propio inquilino, sin ningún concepto de propiedad que
+acotar más allá del inquilino, porque cualquiera de los dos puede abrir la
+única puerta de la clínica) y un controlador nuevo,
+`AccessCodesController`. El flujo genera un código de quince minutos fuera
+de cualquier turno, lo verifica instalado igual que el flujo normal, lo
+persiste con el turno nulo, dentro de una misma transacción deja el
+asiento de auditoría con la acción `ACCESS_CODE_ADHOC_OPENING` (traducción
+de "APERTURA_ADHOC", misma convención que `ACCESS_CODE_EXPIRED`) y
+devuelve el PIN en la propia respuesta HTTP —el propio ticket ofrece esa
+alternativa a enviarlo por `MessagingPort`, y no existe ningún número de
+celular registrado para un `Professional` o un `User` en este sistema, así
+que la respuesta es el único canal disponible—. A diferencia de
+`generateForAppointment`/`revokeForAppointment`, este método no se traga
+una falla de `LockPort`: ahí no hay ninguna otra mutación de negocio que
+proteger, generar el código *es* todo el pedido, y quien lo solicita —una
+persona frente a la puerta— necesita enterarse en el momento, así que la
+falla se traduce a un `ServiceUnavailableException` (503) en lugar de un
+registro silencioso en `LockLog`.
+
+Que el código ad-hoc no esté asociado a ningún turno obligó a revisar el
+diseño de acotamiento por inquilino que TASK-55 le había dado a
+`AccessCode` (hijo puro de `Appointment`, ver más arriba en esta misma
+sección): un código sin turno no tiene ningún padre del que heredar esa
+garantía. En lugar de dejar a `AccessCode` sin acotamiento automático —lo
+que habría expuesto sin filtro una tabla que gobierna el acceso físico al
+edificio—, se le agregó `organizationId` propio, pasando a un caso híbrido:
+acotado por inquilino de forma directa, con una clave foránea compuesta
+*opcional* hacia `Appointment` que sólo se puebla para el flujo normal por
+turno. La restricción usa el mismo mecanismo que ya prueba
+`WaitlistOffer.waitlistEntryId` desde una fase anterior —Postgres no exige
+la coincidencia mientras la columna opcional sea nula—, así que un código
+ad-hoc queda fuera de su alcance sin ninguna excepción explícita que
+mantener. Como efecto secundario correcto de ese cambio,
+`AccessCodeExpirationCron` dejó de unirse contra `Appointment` para su
+filtro por inquilino —la extensión de Prisma que acota automáticamente por
+`organizationId` empezó a alcanzar a `AccessCode` sin ese `join` manual— y
+el barrido pasó a recoger también los códigos ad-hoc vencidos sin ningún
+caso especial, con la misma consulta por estado activo y ventana vencida
+de siempre.
+
+Figuras pendientes: diagrama de secuencia del envío del código al confirmar
+(código activo → plantilla `ACCESS_CODE_DELIVERY` → `MessagingPort`, frente
+a la rama sin código, que no envía nada); diagrama de secuencia de la
+apertura ad-hoc (pedido autenticado → generación y verificación en la
+cerradura → persistencia con turno nulo y auditoría, dentro de una
+transacción → PIN devuelto en la respuesta, o 503 si la cerradura falla).
+La descripción de la Figura 47 (diagrama entidad-relación del subdominio de
+cerradura) se corrigió en el propio listado de figuras pendientes para
+reflejar este cambio de esquema, ya que el diagrama en sí todavía no se
+había dibujado.
 
 ## 4.9 Endurecimiento, cumplimiento y piloto
 
