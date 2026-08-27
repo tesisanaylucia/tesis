@@ -4798,3 +4798,90 @@ eliminaron, y la ausencia de un mecanismo de limpieza para catálogos
 globales creados por pruebas de integración quedó registrada como algo a
 resolver en una tarea futura, sin que fuera indispensable resolverlo para
 cerrar esta auditoría.
+
+Sobre esa base ya auditada se implementó el módulo de seguridad propiamente
+dicho (P8.1): revisión y completitud de los guards de autorización en todos
+los endpoints, límite de tasa de peticiones en los dos puntos que la
+especificación identifica como sensibles a abuso, gestión de secretos por
+variable de entorno, y cifrado en reposo del identificador de acceso que la
+integración con la cerradura inteligente conserva. La revisión de guards,
+recorriendo cada controlador del backend, concluyó que la cobertura
+existente ya era completa: cada endpoint administrativo exige el rol
+correspondiente, cada endpoint de lectura abierta a más de un rol lo
+documenta explícitamente en su propio código con la razón por la que esa
+apertura es intencional (por ejemplo, la disponibilidad de un profesional
+debe poder consultarla cualquier usuario autenticado del mismo tenant,
+porque tanto el flujo de reserva como el futuro chatbot la necesitan), y el
+aislamiento entre organizaciones no depende de una comprobación por ruta
+sino de una propiedad transversal del acceso a la base de datos: la
+extensión de Prisma que ya filtra y sella automáticamente cada consulta por
+la organización del token autenticado hace que una fila de otra
+organización sea, para cualquier ruta, indistinguible de una fila
+inexistente. Por esa razón, el acceso entre organizaciones responde con
+"recurso no encontrado" y no con "acceso denegado" en todo el sistema —una
+decisión de diseño ya tomada en tareas anteriores y aquí simplemente
+verificada y dejada documentada como prueba automatizada única y
+representativa, en lugar de una comprobación distinta por cada módulo—,
+mientras que el intento de acceder con un rol no autorizado a un endpoint
+de otro rol sí responde "prohibido", con el propio mecanismo de
+autorización basado en roles.
+
+El límite de tasa de peticiones se implementó con una biblioteca dedicada
+del ecosistema del framework, aplicada únicamente sobre los dos puntos que
+la especificación nombra como sensibles a abuso —el inicio de sesión, por
+la fuerza bruta de contraseñas, y el punto de entrada de mensajes de
+WhatsApp, por una posible inundación de peticiones— y no de forma global
+sobre el resto de la API, que no tiene ese perfil de riesgo y cuyo tráfico
+legítimo (la aplicación móvil del profesional, el propio flujo
+conversacional) no debía verse limitado sin necesidad. Cada uno de esos dos
+puntos queda regulado por un límite y una ventana de tiempo configurables
+por variable de entorno, con los valores por defecto que la propia
+especificación fija (diez intentos por minuto para el inicio de sesión,
+cien peticiones por segundo para el punto de entrada de WhatsApp). Esa
+configurabilidad resultó necesaria por una razón práctica detectada durante
+la propia validación de la tarea: la suite de pruebas de extremo a extremo
+inicia sesión decenas de veces por archivo de prueba —una vez por cada
+combinación de organización y rol que cada escenario necesita—, todas
+dentro de la misma ventana de un minuto, de modo que el límite de diez
+intentos, aplicado sin distinción, interrumpía pruebas que no tenían
+ninguna relación con la funcionalidad de límite de tasa en sí. Se optó por
+mantener el valor de la especificación como comportamiento por defecto del
+código y elevarlo solo en el entorno de pruebas —tanto en el desarrollo
+local como en la integración continua—, dejando una prueba de extremo a
+extremo aislada, con su propia instancia de la aplicación y el valor real
+restablecido para esa instancia únicamente, que sí ejercita el límite
+verdadero de la especificación en ambos puntos.
+
+La gestión de secretos no requirió cambios de fondo, porque las tareas
+anteriores ya habían establecido la convención de leer cada credencial
+desde una variable de entorno, documentada sin valores reales en el
+archivo de ejemplo del repositorio, y de que la aplicación falle al
+iniciar si falta alguna. Lo que se agregó fue una verificación automática
+de esa propiedad en la integración continua, mediante una herramienta de
+detección de secretos de uso extendido en la industria en lugar de una
+búsqueda de patrones escrita a mano, que recorre el historial completo de
+cambios del repositorio en cada ejecución.
+
+El cifrado en reposo se limitó, de forma deliberada, al identificador
+opaco que la integración con la cerradura inteligente conserva para poder
+eliminar o verificar un código ya instalado —no al código numérico que la
+paciente efectivamente digita en el teclado de la cerradura, que ya estaba
+excluido de cualquier registro por una decisión de una tarea anterior, y
+cuya ventana de validez es corta por diseño—. Ese identificador es, a
+diferencia del código numérico, un valor persistente y reutilizable en la
+plataforma de la cerradura, por lo que su exposición ante una fuga que no
+sea la del propio disco de la base de datos —por ejemplo, el resultado de
+una consulta capturado por un componente de registro o un acceso de
+soporte— sí representa una credencial vigente contra una puerta física. Se
+cifró con un algoritmo autenticado, de forma transparente para el resto del
+código: el único componente que persiste y que vuelve a leer esa columna
+descifra y cifra en los dos únicos puntos donde el valor se toca. Los
+demás datos que la propia especificación menciona como candidatos al
+cifrado a nivel de columna —la fecha de nacimiento y el celular de la
+paciente, y las observaciones de la relación entre paciente y
+profesional— se dejaron sin cifrar a nivel de aplicación, una decisión
+explícita y no una omisión: la especificación permite esa alternativa
+cuando la base de datos ya cifra a nivel de disco, que es la protección en
+la que este sistema se apoya para esas columnas, de lectura y escritura
+frecuente en la operación diaria, a diferencia del identificador de la
+cerradura, que solo dos componentes tocan.
