@@ -5125,3 +5125,41 @@ dos veces seguidas contra una base de datos real, confirmando que la
 segunda ejecución no altera ni duplica lo que la primera ya había creado,
 y cada endpoint que el checklist nombra se confirmó existente en el
 código antes de incorporarlo al documento.
+
+Una revisión posterior del propio punto de entrada de la aplicación
+encontró un vacío que P8.1 no había cubierto: `main.ts` sólo configuraba el
+pipe de validación global y llamaba a `app.listen`, sin ninguna cabecera de
+seguridad HTTP propia ni una política CORS explícita, dependiendo por
+completo de los valores por defecto de Express/Nest. Se cerró agregando
+`helmet`, montado antes que cualquier otra configuración, y una lista
+blanca explícita de orígenes permitidos para CORS, leída de una variable de
+entorno nueva en lugar del valor por defecto permisivo —decisión obligada y
+no meramente prudente, dado que cada ruta de la API ya viaja con un JWT en
+la cabecera de autorización, y un origen sin restricción podría leer una
+respuesta autenticada desde cualquier script de terceros—. La variable de
+entorno que la configura es obligatoria al arrancar, con el mismo patrón de
+"fallar rápido" que ya
+usan el secreto de los tokens o la clave de cifrado en reposo, y su propio
+validador rechaza explícitamente el comodín aunque aparezca mezclado con
+orígenes reales, para que una lista blanca permisiva sea estructuralmente
+imposible en lugar de sólo desalentada por convención. Un origen no
+permitido no se responde con un error explícito sino, simplemente, sin la
+cabecera que autoriza al navegador a exponerle la respuesta al script que
+la pidió —CORS es, en última instancia, un mecanismo que aplica el
+navegador y no el servidor, y la petición en sí se sigue completando
+normalmente contra el backend—, réplica deliberada de ese mismo
+comportamiento en lugar de, por ejemplo, cortar la petición con un error
+propio. Tanto el montaje de las cabeceras como la política CORS se
+extrajeron a una función propia, separada del punto de entrada, para que la
+prueba de extremo a extremo dedicada pudiera aplicar exactamente esa misma
+configuración a su propia instancia aislada de la aplicación —el resto de
+las pruebas del proyecto arman su instancia directamente sobre el módulo
+raíz, sin pasar por el arranque real, así que sin esa extracción la única
+forma de probarlo habría sido reconstruir la configuración a mano dentro
+del archivo de prueba, con el riesgo de que ambas copias divergieran
+silenciosamente. Queda como puerta abierta, fuera del alcance de esta
+tarea, que la lista de orígenes es hoy global por despliegue y no por
+organización: si en el futuro cada tenant necesita su propio dominio de
+frontend, la función de origen que decide qué se permite es el punto de
+extensión natural para resolverla por organización en lugar de una única
+lista fija.
