@@ -4996,3 +4996,51 @@ unitarias y de extremo a extremo — la suite de extremo a extremo corre así
 dos veces por ejecución, una decisión deliberada para mantener una señal
 de fallo rápida y sin instrumentar separada de la corrida, más lenta, que
 mide cobertura.
+
+El cuarto y último módulo implementado de esta fase (P8.4) empaquetó el
+backend en una imagen Docker de dos etapas y un `docker-compose` de
+producción distinto del ya existente para desarrollo local —que solo
+levanta la base de datos, para no forzar una reconstrucción de imagen en
+cada guardado del ciclo de edición diario—, junto con una guía de
+despliegue paso a paso pensada para un tercero sin conocimiento previo del
+código. La primera etapa de la imagen instala el proyecto completo,
+incluidas sus dependencias de desarrollo —necesarias porque tanto el
+compilador de TypeScript como el cliente de línea de comandos de Prisma lo
+son—, genera el cliente de Prisma y compila el proyecto, para luego podar
+esas dependencias de desarrollo sin perder el cliente ya generado, que
+vive dentro de una dependencia de producción a la que esa poda no alcanza;
+la segunda etapa parte de una imagen limpia y copia únicamente ese
+resultado ya podado, corriendo con un usuario sin privilegios de
+administrador en lugar del que la imagen base usa por defecto. Validar ese
+flujo de punta a punta contra Docker real, en lugar de asumir que una
+compilación sin errores bastaba, expuso un defecto preexistente en el
+proyecto: la raíz de la compilación de TypeScript nunca había quedado
+fijada explícitamente, de modo que el compilador —al encontrar, además del
+código fuente, un script suelto fuera de esa carpeta que ya se ejecuta por
+su cuenta con otra herramienta— calculaba esa raíz como el directorio del
+proyecto entero, y el archivo de entrada de la aplicación terminaba
+compilado un nivel más adentro de lo que el propio comando de arranque de
+producción, ya existente desde las primeras tareas del backend, esperaba
+encontrar. Nadie lo había detectado hasta ahora porque ese comando nunca
+se había ejecutado de punta a punta contra el resultado real de una
+compilación de producción; se corrigió fijando esa raíz y excluyendo de
+esa compilación en particular al script suelto, sin afectarlo. El
+`docker-compose` de producción declara tres servicios —base de datos, un
+contenedor de una sola ejecución que aplica las migraciones de Prisma
+antes de que el backend arranque, y el backend mismo, el único que expone
+un puerto al host— sobre una red interna y un volumen persistente, y
+ninguna variable de entorno que el propio código ya trata como obligatoria
+recibe un valor de respaldo en ese archivo: si falta alguna en el servidor
+de destino, el stack se niega a arrancar nombrándola, en lugar de partir
+con un secreto vacío. Las credenciales de la cerradura inteligente
+deliberadamente no aparecen entre esas variables, ni siquiera como
+ejemplo, porque una decisión de arquitectura ya tomada en una tarea muy
+anterior las trata como propias de cada organización y las lee de la base
+de datos, no del entorno del proceso — agregarlas aquí hubiera contradicho
+esa decisión sin necesidad. Por último, la estrategia de backup de la base
+de datos quedó documentada, no implementada, siguiendo el propio alcance
+de la tarea y la nota ya dejada en la tarea de retención de datos anterior
+de que un trabajo de archivado automático todavía no existe: la guía
+describe una copia en frío del volumen y un volcado lógico periódico en
+caliente, ejecutables a mano o por una tarea programada del sistema
+operativo del servidor, sin agregar ningún servicio nuevo al stack.
