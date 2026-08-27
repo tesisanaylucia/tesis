@@ -4949,3 +4949,50 @@ respuesta del paciente lo excluye por construcción. Finalmente, se
 reverificó que el consentimiento informado sigue siendo condición
 necesaria para reservar un turno, tal como lo habían implementado tareas
 anteriores, sin que esta tarea necesitara modificar esa validación.
+
+El tercer y último módulo de esta fase de endurecimiento (P8.3) consolidó
+la suite de tests del sistema completo y su cobertura, cerrando lo que
+cada tarea de extremo a extremo de los módulos anteriores había construido
+por separado. Medir la cobertura de la capa de servicios usando solo la
+suite unitaria dio 76% de líneas y 67% de ramas, por debajo del umbral que
+la especificación exige — no por falta de pruebas, sino porque una parte
+considerable de esa capa (el servicio de pacientes, el de profesionales,
+el de matrículas, el de ausencias, entre otros) se valida exclusivamente
+mediante pruebas de extremo a extremo contra PostgreSQL real, nunca con
+una prueba unitaria sobre un cliente de base de datos simulado, una
+práctica ya establecida en tareas anteriores. Se optó por unificar la
+configuración de Jest, antes repartida entre `package.json` y un archivo
+aparte para las pruebas de extremo a extremo, en dos proyectos de una
+misma configuración, y medir el umbral únicamente al ejecutarlos juntos:
+Jest combina de forma nativa la cobertura de todos los proyectos que
+corrieron en una misma invocación, sin necesitar ninguna herramienta
+externa de fusión. Con ambas suites combinadas la cobertura real resultó
+97% de líneas y 83% de ramas, ampliamente por encima del umbral, sin
+haber escrito ninguna prueba nueva únicamente para satisfacer un número.
+El umbral se restringe a la capa de servicios y excluye a los adaptadores
+de integración externa aprovechando una convención de nombres que el
+código ya seguía — cada servicio de dominio termina en `.service.ts`, cada
+adaptador externo en `.adapter.ts` — en lugar de mantener una lista de
+exclusión a mano que pudiera desactualizarse. Se descubrió además, al
+configurar el umbral, que el mecanismo de Jest para acotarlo a un
+subconjunto de archivos no promedia la cobertura del conjunto sino que
+exige que cada archivo individual la supere por separado, un
+comportamiento distinto al que la documentación de la herramienta sugiere
+a primera lectura; se resolvió sin esa clave especial, ya que restringir
+de antemano qué archivos se miden hizo que el umbral general operara, de
+hecho, como el promedio agregado buscado sobre exactamente esa capa. El
+resto de la tarea fue de verificación, no de escritura: se confirmó que
+el aislamiento entre organizaciones ya está probado en capas distintas y
+complementarias (el mecanismo mismo, el caso literal de un paciente de una
+organización inaccesible con el token de otra, el motor de turnos y lista
+de espera, y el webhook de WhatsApp cuando dos organizaciones comparten
+número), y que las pruebas de seguridad básicas — sin token, con rol
+equivocado, límite de tasa sobre el inicio de sesión — ya existían de la
+tarea de seguridad anterior, dejando documentado en un solo lugar cuál
+prueba cubre cada caso en lugar de duplicar cobertura ya existente. La
+integración continua quedó con un paso adicional que ejecuta la suite
+combinada con cobertura después de las corridas ya existentes de pruebas
+unitarias y de extremo a extremo — la suite de extremo a extremo corre así
+dos veces por ejecución, una decisión deliberada para mantener una señal
+de fallo rápida y sin instrumentar separada de la corrida, más lenta, que
+mide cobertura.
