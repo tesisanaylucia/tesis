@@ -4886,6 +4886,35 @@ la que este sistema se apoya para esas columnas, de lectura y escritura
 frecuente en la operación diaria, a diferencia del identificador de la
 cerradura, que solo dos componentes tocan.
 
+El propio módulo de seguridad quedó con un vacío sin cubrir al cerrarse,
+señalado como tal en un comentario del código: un token JWT ya emitido
+seguía siendo válido hasta su expiración natural aunque la cuenta que lo
+recibió se desactivara o cerrara sesión de forma explícita, porque la
+verificación de que un profesional sigue activo sólo ocurría al iniciar
+sesión, nunca en cada petición posterior. Una tarea de corrección
+posterior lo cerró agregando una columna de versión a la fila de la
+cuenta, copiada dentro del propio token en el momento de firmarlo y
+comparada contra el valor vigente en cada petición autenticada: una
+discrepancia se rechaza aunque la firma y la expiración del token sigan
+siendo válidas. Dos hechos incrementan esa versión —la desactivación de
+un profesional, dentro de la misma transacción que ya escribía su baja
+lógica, y un cierre de sesión explícito, nuevo endpoint agregado para la
+ocasión— y ambos alcanzan también el caso de una sospecha de compromiso de
+credenciales, que no recibió un mecanismo aparte: revocar la cuenta propia
+es exactamente esa misma operación, aplicada por quien administra el
+sistema en lugar de por la propia usuaria. Se prefirió deliberadamente
+esta alternativa, la más simple entre las que el propio pedido de
+corrección dejaba abiertas, a un segundo tipo de token de refresco con
+almacenamiento propio del lado del servidor, aceptando a cambio el costo
+de una consulta adicional a la base por cada petición autenticada —una
+relación de compromiso razonable dado el volumen de uso esperado del
+piloto—. La verificación corre antes de que exista un contexto de
+inquilino abierto, la misma restricción que ya afectaba a las dos
+comprobaciones previas del inicio de sesión, así que la búsqueda de la
+cuenta por su identificador sigue el mismo patrón ya establecido de leer
+sin acotar por organización cuando el propio campo consultado —aquí, la
+clave primaria— hace ese acotamiento innecesario.
+
 Sobre esa misma base de seguridad se implementó el segundo módulo de
 cumplimiento normativo (P8.2): una política de retención de datos, la
 verificación de que el registro de auditoría no guarda contenido del
