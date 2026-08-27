@@ -4885,3 +4885,67 @@ cuando la base de datos ya cifra a nivel de disco, que es la protección en
 la que este sistema se apoya para esas columnas, de lectura y escritura
 frecuente en la operación diaria, a diferencia del identificador de la
 cerradura, que solo dos componentes tocan.
+
+Sobre esa misma base de seguridad se implementó el segundo módulo de
+cumplimiento normativo (P8.2): una política de retención de datos, la
+verificación de que el registro de auditoría no guarda contenido del
+paciente, y tres endpoints administrativos que implementan los derechos de
+acceso, supresión y rectificación de los Arts. 14 y 16 de la Ley 25.326.
+Ni la especificación de requisitos ni el anteproyecto de la tesis fijan un
+plazo concreto de retención para ningún tipo de dato, de modo que los
+plazos elegidos —cinco años desde cada entrada de auditoría antes de ser
+archivada, y cinco años desde la baja o supresión de un paciente antes de
+que la fila sea elegible para archivado— son una decisión de diseño de
+este sistema y no un mínimo legal transcripto de una fuente; se
+documentaron directamente como comentarios de PostgreSQL sobre las tablas
+y columnas que gobiernan, aplicados por una migración escrita a mano,
+porque Prisma no ofrece sintaxis propia para declarar ese tipo de
+comentario en su archivo de esquema. Ningún trabajo automático de
+archivado existe todavía: la política documentada es la que ese trabajo,
+cuando se construya, deberá seguir. La verificación de que el registro de
+auditoría respeta el principio de guardar solo que un recurso fue tocado,
+nunca su contenido, no requirió cambios de código —esa disciplina ya
+estaba estable desde tareas anteriores, sostenida por la misma función que
+calcula qué campos cambiaron en una edición—, sino dejar esa propiedad
+registrada explícitamente como regla documentada tras recorrer cada punto
+del código que escribe una entrada de auditoría.
+
+Los tres endpoints de derechos del titular se organizaron en un módulo
+propio, distinto del módulo de pacientes existente, porque la exportación
+de datos necesita leer también los turnos y las solicitudes de receta del
+paciente —entidades de otros dominios— y el módulo de turnos ya depende
+del módulo de pacientes, de modo que la dependencia inversa hubiera
+cerrado un ciclo de importación. El nuevo módulo se ubica por encima de
+ambos y lee esas tablas directamente con el cliente de base de datos de
+alcance por tenant, sin depender del servicio de turnos, siguiendo el
+mismo patrón que ya usa el servicio de disponibilidad para leer feriados y
+turnos. Las tres operaciones se auditan con nombres de acción propios,
+distintos de los que ya usa la edición administrativa ordinaria de un
+paciente, de modo que una consulta de cumplimiento pueda distinguir una
+solicitud formal de derechos de una edición rutinaria. La supresión no es
+un borrado físico —una clave foránea ya existente impide eliminar un
+paciente mientras exista alguna entrada de auditoría que lo nombre,
+precisamente para que el registro que prueba que la supresión ocurrió
+sobreviva a la fila que describe—, sino la misma baja lógica administrativa
+que el sistema ya tenía, ampliada para reemplazar el documento, el nombre,
+el apellido y todo dato de contacto por un valor que no identifica a
+ninguna persona real. Antes de anonimizar se verifica que no existan
+turnos futuros reservados o confirmados; si existen, la operación se
+rechaza nombrándolos en el mensaje de error, y tanto esa verificación como
+la escritura posterior corren bajo el nivel de aislamiento serializable de
+la base de datos, para que un turno reservado exactamente entre ambos
+pasos no quede huérfano bajo una identidad ya anonimizada. La
+rectificación, en cambio, reutiliza el mismo método de edición que ya
+usaba el endpoint administrativo ordinario —modificado para aceptar el
+nombre de la acción de auditoría como parámetro opcional—, sin duplicar su
+manejo de conflictos de documento ni el cálculo de campos cambiados. La
+exportación, por su parte, no incluye las observaciones internas del
+profesional sobre el paciente: una decisión de una tarea anterior ya había
+establecido que ese campo es de uso exclusivo de quien lo escribe, y no se
+relajó esa restricción para este caso —una nota clínica interna no es un
+dato que el derecho de acceso alcance a exponer por un canal
+administrativo—, de modo que la propia estructura de datos que arma la
+respuesta del paciente lo excluye por construcción. Finalmente, se
+reverificó que el consentimiento informado sigue siendo condición
+necesaria para reservar un turno, tal como lo habían implementado tareas
+anteriores, sin que esta tarea necesitara modificar esa validación.
