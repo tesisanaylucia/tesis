@@ -5044,3 +5044,55 @@ de que un trabajo de archivado automático todavía no existe: la guía
 describe una copia en frío del volumen y un volcado lógico periódico en
 caliente, ejecutables a mano o por una tarea programada del sistema
 operativo del servidor, sin agregar ningún servicio nuevo al stack.
+
+El quinto y último módulo de esta fase (P8.5) cierra la implementación
+funcional del sistema con dos entregables previos a la validación con la
+clínica: un script de siembra de datos realistas para el entorno de
+piloto y un checklist de marcha blanca para recorrer junto con el
+responsable de la clínica antes de operar con datos reales. El script de
+siembra de piloto crea una organización propia, separada de la
+organización de desarrollo que el script de siembra original ya crea,
+reutilizando de esa función todo lo que ya resolvía —organización,
+administrador, usuario de sistema, especialidades, catálogo de obras
+sociales, configuración de reglas de negocio del tenant, plantel de
+profesionales con sus matrículas y horarios de atención— y agregando
+sobre esa base únicamente lo que faltaba: pacientes con vínculos
+paciente-profesional de distinto tipo y prioridad y consentimiento ya
+aceptado, un calendario de feriados nacionales y provinciales, turnos que
+cubren los cuatro estados posibles distribuidos en la semana siguiente a
+la carga, una lista de espera, preguntas frecuentes para el chatbot y un
+código de acceso activo para el turno confirmado del día siguiente. El
+script sigue el mismo criterio de convergencia —actualizar o insertar
+según una clave natural cuando el esquema ya ofrece una, o según un
+identificador determinístico derivado de un espacio de nombres propio
+cuando no la hay— que el script de siembra original ya establecía, de
+modo que ejecutarlo más de una vez converge siempre al mismo estado en
+lugar de duplicar filas; ese espacio de nombres debió parametrizarse por
+organización de destino durante la propia escritura de la prueba de
+extremo a extremo del script, tras un primer diseño que lo dejaba fijo a
+nivel de módulo y que una organización de prueba descartable exponía como
+una colisión de identificadores con la organización de piloto real —el
+mismo defecto que la parametrización por organización ya prevenía para
+el profesional, la matrícula y el horario de atención heredados de la
+función reutilizada. El código de acceso sembrado se escribe
+directamente contra la base de datos en lugar de a través del servicio de
+dominio que genera códigos en el flujo real, ya que ese servicio depende
+de un adaptador de cerradura inteligente y de configuración por tenant
+resueltos por inyección de dependencias, contenedor que un script
+ejecutado fuera de la aplicación no tiene — reutiliza, en cambio, las
+mismas constantes de ventana de validez y la misma función de cifrado de
+campo que ese servicio ya usa, para que la fila resultante tenga la misma
+forma que la que el flujo real habría producido.
+
+El checklist de marcha blanca traduce las categorías funcional, de
+seguridad y de cumplimiento que pide la SRS, agregando una cuarta de
+integración —las dos integraciones externas del sistema sólo pueden
+validarse contra credenciales y hardware reales, nunca contra la
+integración continua—, con dieciocho ítems verificables a mano contra el
+conjunto de datos de piloto y una constancia de aceptación con espacio de
+firma para el responsable de la clínica y para el responsable técnico.
+Ambos entregables se verificaron de punta a punta: el script se ejecutó
+dos veces seguidas contra una base de datos real, confirmando que la
+segunda ejecución no altera ni duplica lo que la primera ya había creado,
+y cada endpoint que el checklist nombra se confirmó existente en el
+código antes de incorporarlo al documento.
