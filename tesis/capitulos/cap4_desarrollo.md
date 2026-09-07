@@ -3024,6 +3024,46 @@ precedente de un mismo recurso bajo dos rutas según el rol que lo consulta,
 cuando el patrón ya establecido para un recurso que ambos roles comparten es
 una única ruta con el rol declarado por operación.
 
+Una auditoría posterior sobre el ciclo de vida del turno confirmó que el
+bloqueo del adaptador provisorio de confirmación de reprogramación, descrito
+más arriba como una situación transitoria equivalente a la que en su momento
+tuvo la reasignación automática, nunca llegó a resolverse con la misma
+oportunidad: mientras el puerto de la lista de espera ya había sido
+rediseñado para dejar de bloquear, el de reprogramación seguía
+respondiendo que no de forma incondicional, de modo que tanto la
+reprogramación individual por administración o por el propio profesional
+como la reorganización manual de la agenda fallaban siempre, sin
+excepción, sobre un punto de acceso que el sistema ya exponía como
+disponible. La corrección aplicó al puerto de reprogramación exactamente el
+mismo rediseño asíncrono que la lista de espera ya tenía: en lugar de
+preguntar y esperar la respuesta dentro del mismo pedido HTTP, el punto de
+acceso registra la oferta de reprogramación —con la fecha anterior y la
+nueva, y el turno y el paciente a los que se refiere— y devuelve de
+inmediato una respuesta que declara explícitamente el turno como pendiente
+de confirmación, sin tocar todavía su fecha. Un método nuevo, separado de la
+escritura que aplica el cambio, resuelve la oferta cuando la confirmación
+finalmente llega; ese método hoy sólo lo invocan las pruebas, porque el
+canal real de respuesta del paciente por WhatsApp continúa sin existir,
+exactamente la misma situación en la que se encontraba el método
+equivalente de la lista de espera antes de que un trabajo posterior le
+conectara un webhook real.
+
+La diferencia deliberada respecto del rediseño de la lista de espera es que
+éste no incorporó ningún trabajo programado que expire una oferta de
+reprogramación no respondida. La lista de espera sí tiene ese trabajo,
+porque el documento de requisitos fija en cuatro horas el tiempo que un
+candidato tiene para responder antes de que la oferta pase al siguiente; la
+reprogramación, en cambio, no tiene en el documento de requisitos ningún
+plazo equivalente, así que la corrección no inventó uno. Una oferta de
+reprogramación queda entonces pendiente indefinidamente hasta que el canal
+real la resuelva o hasta que un trabajo futuro decida, con un requisito que
+hoy no existe, cuánto tiempo es razonable esperar. Esa es precisamente la
+alternativa que el propio hallazgo de la auditoría contemplaba —un estado
+explícito de "confirmación pendiente" en lugar de un fallo inmediato— y la
+que se adoptó: un turno que nunca recibe respuesta queda visiblemente sin
+reprogramar, nunca con una reprogramación fingida ni con un pedido que el
+llamante deba interpretar como un error del sistema.
+
 ## 4.5 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
