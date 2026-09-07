@@ -3120,6 +3120,61 @@ que se adoptó: un turno que nunca recibe respuesta queda visiblemente sin
 reprogramar, nunca con una reprogramación fingida ni con un pedido que el
 llamante deba interpretar como un error del sistema.
 
+Una revisión posterior retomó la carencia que había quedado señalada como
+observación pendiente al describir la corrección del motor de reasignación,
+más arriba en esta misma sección: dar de alta un feriado no cancelaba los
+turnos RESERVADO o CONFIRMADO que ya existían sobre esa fecha, para ningún
+profesional de la organización. Aquella corrección impedía que la
+reasignación agregara turnos nuevos sobre un feriado ya declarado, pero
+dejaba intacta la otra mitad del problema: un turno agendado con semanas de
+anticipación permanecía en la agenda del profesional aunque la fecha se
+declarara feriado después, disparaba el recordatorio y el pedido de
+confirmación de los trabajos programados correspondientes, y el paciente
+terminaba presentándose un día en que la clínica no atendía.
+
+La corrección reutiliza el patrón que ya resolvía el caso análogo de la
+ausencia de un profesional, con una diferencia de alcance: mientras que la
+ausencia cancela los turnos de un único profesional dentro de un rango de
+fechas, el feriado cancela los de todos los profesionales de la organización
+sobre una única fecha, porque el calendario de feriados es una propiedad del
+inquilino entero y no de un profesional en particular. Cada turno afectado se
+cancela en su propia transacción, con su propio bloque de manejo de errores,
+de modo que un conflicto de concurrencia sobre uno de ellos no impide que el
+resto de la fecha se cancele ni hace fallar el alta del feriado que lo
+dispara. Se agregó un motivo de cancelación nuevo al enumerado existente
+—hasta entonces distinguía sólo la ausencia del profesional y la falta de
+confirmación— para que la auditoría y los reportes puedan distinguir también
+esta causa, y la cancelación dispara el mismo aviso al paciente y el mismo
+enganche hacia el motor de reasignación que dispara una cancelación
+ordinaria. Sobre este último punto la decisión fue deliberada, no heredada
+por omisión: desde que el motor de reasignación aprendió a reconocer un
+feriado, en la corrección descrita más arriba, dispararlo sobre una fecha que
+ya es feriado es inocuo —el motor libera la retención sin ofrecérsela a
+nadie—, de modo que mantenerlo evita construir un mecanismo de aviso y
+reasignación propio para este tercer origen de cancelación en lugar de
+reutilizar el que ya sirve a los otros dos.
+
+A diferencia de la ausencia, publicar la cancelación a través de un puerto de
+extensión propio no era aquí indispensable para evitar un ciclo de
+importación: el módulo de turnos no depende del de feriados por ningún otro
+motivo, de modo que este último podría haber importado directamente el
+primero sin cerrar ningún ciclo. Se mantuvo, sin embargo, la misma forma de
+extensión que ya usa la ausencia, por la razón que motivó esa decisión de
+arquitectura desde el principio: que un módulo señale un hecho propio sin
+conocer ni depender de la lógica de quien reacciona a él. El módulo de
+feriados sigue así sin saber qué hace el de turnos con la fecha que declara.
+
+Quedaron deliberadamente fuera de esta corrección dos preguntas que el propio
+hallazgo planteaba. La primera es qué ocurre al eliminar un feriado: los
+turnos que su alta canceló no se restauran solos, la misma decisión ya
+tomada para la ausencia por la razón simétrica —reclamar el mismo horario
+podría ya no ser posible—, documentada explícitamente en lugar de asumida
+por omisión. La segunda es si un feriado declarado sobre una fecha pasada
+debía tratarse distinto: no fue necesario decidirlo aparte, porque el filtro
+por estado RESERVADO/CONFIRMADO ya excluye por sí solo cualquier turno que el
+paciente haya completado o al que haya faltado, de modo que un alta
+retroactiva sólo alcanza a turnos que nadie resolvió de una forma u otra.
+
 ## 4.5 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
