@@ -942,6 +942,28 @@ verificación de la capa de servicio, protege por igual el alta y la edición
 de una matrícula sin necesitar el aislamiento serializable que otros
 invariantes de lectura seguida de escritura de este módulo sí requirieron.
 
+Una revisión de paridad entre módulos, ya avanzado el desarrollo del motor de
+turnos, notó que la baja lógica del profesional carecía de camino de vuelta:
+el módulo de Pacientes, descrito en 4.3, expone desde su propia auditoría de
+código un punto de acceso de reactivación que anula la marca temporal de baja,
+mientras que un profesional desactivado por API solo podía recuperarse
+accediendo directamente a la base de datos. La corrección agregó el punto de
+acceso simétrico, replicando el mismo método de servicio del módulo de
+Pacientes: reservado al rol administrativo, envuelto en una transacción única
+que anula la marca de baja y dentro de la misma escritura deja su rastro en la
+traza de auditoría. A diferencia de la baja, que en este módulo revoca además
+los tokens de sesión vigentes del profesional para que uno ya desactivado no
+conserve acceso de escritura hasta el vencimiento natural de su credencial
+—una decisión de seguridad descrita más arriba en esta sección—, la
+reactivación no restituye ningún token: se trató la readmisión como una nueva
+decisión de autorización y no como la reversión exacta de la baja, de modo que
+el profesional reactivado simplemente vuelve a iniciar sesión. La verificación
+reutilizó la misma composición de pruebas end-to-end que el resto del módulo:
+el rechazo del punto de acceso a un rol no administrativo, la reactivación
+exitosa por el administrador con el profesional de vuelta en el listado activo
+y su marca de baja anulada en la base, y el aislamiento por tenant ante el
+intento de un administrador de otra organización.
+
 ## 4.3 Pacientes
 
 El segundo módulo de negocio siguió el mismo criterio de apertura que el
