@@ -2879,7 +2879,7 @@ configurada no puede contradecir a la otra, y una comprobación de tabla
 debería tolerar los estados intermedios sin poder distinguir después cuál de
 las dos mitades el operador acaba de mover.
 
-Una última revisión del motor de turnos expuso que la regla de feriados, que
+Otra revisión del motor de turnos, parte de la misma auditoría, expuso que la regla de feriados, que
 el servicio de disponibilidad aplica tanto al construir la agenda ofrecible
 como al verificar un instante puntual, no alcanzaba al motor de reasignación
 de la lista de espera. La causa es la misma decisión de arquitectura que se
@@ -2999,6 +2999,40 @@ rige sobre aquello que la clínica efectivamente decide, y una opción que nadie
 va a modificar no es configuración sino un parámetro muerto —una columna, un
 campo del punto de acceso de configuración, un campo de la respuesta y las
 pruebas de todos ellos— sosteniendo una decisión ya tomada.
+
+La misma auditoría alcanzó también a la franja extra para paciente nuevo
+descrita más arriba en esta misma sección, con un hallazgo que contradice de
+raíz la razón de ser de la regla: el cálculo de los dos primeros modos
+—primer turno del día, último turno del día— anclaba el doble turno al
+primer o al último turno *real* de la grilla de horario habitual, tal como se
+explicó al presentarlos, pero "real" ahí significaba únicamente "el turno que
+la grilla habitual efectivamente ofrece", no "un turno agregado por fuera de
+ella". Con un horario de nueve a once y sesiones de treinta minutos, el modo
+primer turno del día terminaba ofreciendo las nueve en punto —el mismo
+horario que cualquier paciente que ya está en tratamiento podía reservar—, en
+lugar de una franja anterior a las nueve que nadie más disputa; la propia
+prueba unitaria escrita para el modo lo confirmaba sin que nadie lo advirtiera
+como error, devolviendo las nueve y no las ocho. El defecto invertía
+exactamente el propósito documentado de la regla, que existe para que una
+primera sesión —más propensa a extenderse— no le coma capacidad al resto de
+la jornada.
+
+La corrección calcula, para estos dos modos exclusivamente, un par de
+instantes por fuera de la grilla habitual: para primer turno del día, el par
+que termina exactamente donde empieza el primer bloque de horario
+configurado; para último turno del día, el que empieza exactamente donde
+termina el último. Ambos separados entre sí por la misma cadencia que separa
+a cualquier par de turnos consecutivos de la agenda —el mismo criterio de
+espaciado que ya había fijado la corrección de la cadencia, más arriba en
+esta sección—, de modo que el tamaño del bloque extra sigue siendo el que ya
+se había decidido, dos veces la duración de la consulta, ahora efectivamente
+ubicado fuera de la franja habitual y no reutilizándola. El efecto colateral
+de la implementación anterior —negar el doble turno por completo si el
+cálculo de disponibilidad habitual no tenía nada libre ese día, porque el
+cálculo de los dos modos dependía de ese resultado para todo lo demás—
+también se corrigió: como el par ya no depende de ningún turno de la grilla
+habitual, sigue ofreciéndose aun en una jornada completamente reservada, que
+es justamente el escenario para el que la regla existe.
 
 Una revisión posterior de las cuatro rutas de administración del calendario
 de feriados expuso que la restricción al rol administrador, razonable para
