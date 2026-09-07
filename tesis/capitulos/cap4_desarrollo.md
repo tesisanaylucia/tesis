@@ -5379,3 +5379,29 @@ organización: si en el futuro cada tenant necesita su propio dominio de
 frontend, la función de origen que decide qué se permite es el punto de
 extensión natural para resolverla por organización en lugar de una única
 lista fija.
+
+Una segunda revisión del mismo punto de entrada cerró la mitad restante
+de esa misma corrección: el pipe de validación global declaraba
+`whitelist: true`, que descarta en silencio cualquier campo que el DTO de
+la ruta no declare, pero no `forbidNonWhitelisted: true`, que lo rechaza
+en lugar de descartarlo. Con la configuración anterior, un campo sobrante
+en el cuerpo de una petición desaparecía sin que quien la envió recibiera
+ninguna señal de que fue ignorado; se cerró agregando esa opción, de modo
+que ahora la petición completa se rechaza con un error 400 que nombra el
+campo no declarado. La construcción del pipe se extrajo a una función
+propia, reutilizada tanto por el arranque real de la aplicación como por
+cada una de las treinta instancias de aplicación que arman los propios
+tests de extremo a extremo —hasta ese momento, cada archivo de prueba
+construía su propia copia textual del mismo pipe—, exactamente el mismo
+criterio de "un único lugar, reutilizado en todas partes" que ya había
+motivado extraer el montaje de helmet y CORS por separado. Revisar la
+suite completa antes de asumir compatibilidad hacia atrás expuso una
+prueba que dependía a propósito del comportamiento anterior: verificaba
+que un campo no declarado, enviado deliberadamente junto a una edición
+válida, no llegaba a persistirse porque el pipe lo descartaba en silencio.
+Se corrigió para reflejar el comportamiento correcto —la petición entera
+se rechaza, y esa misma ausencia de persistencia ahora es consecuencia del
+rechazo, no del descarte silencioso—, y se agregó una prueba nueva contra
+una ruta pública real que prueba el rechazo 400 de un campo sobrante junto
+a un caso de control que sólo envía los campos declarados, para distinguir
+el rechazo del campo puntual de un rechazo de la ruta completa.
