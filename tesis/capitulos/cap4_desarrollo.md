@@ -3626,6 +3626,34 @@ de plantillas real, con únicamente la configuración por inquilino simulada,
 y verifica que el mensaje efectivamente enviado contiene la duración de la
 sesión.
 
+Una octava auditoría, esta vez de tolerancia a fallas, volvió sobre el
+helper compartido descripto en la quinta auditoría de esta misma sección
+—el que centraliza, para los cinco trabajos programados del módulo, el
+recorrido de organizaciones y la apertura del contexto de inquilino de
+cada una— y encontró que ese bucle exterior no tenía ninguna protección
+propia contra una excepción: cada trabajo programado protegía únicamente
+su propio recorrido interno, uno o dos niveles más adentro, con la técnica
+de "mejor esfuerzo por candidato" ya descripta antes en esta sección. Si la
+lectura masiva de una organización fallaba —un timeout del pool de
+conexiones fue el ejemplo que motivó el hallazgo—, la excepción atravesaba
+el bucle exterior sin que nada la detuviera, y ninguna organización
+posterior a la que falló se procesaba en esa corrida. Para el trabajo de
+autocompletado semanal (sección 4.4), el de menor frecuencia de todo el
+sistema, eso equivalía a una semana entera sin procesar para cualquier
+clínica que no fuera la primera en la falla, aunque su propia lectura
+nunca hubiera fallado. La corrección movió la protección un nivel hacia
+afuera: el `try`/`catch` pasó a envolver la iteración completa de cada
+organización dentro del helper compartido —tanto la resolución de su
+usuario SYSTEM como la llamada al trabajo del cron—, de modo que una
+organización cuya iteración lanza una excepción, en cualquiera de esos dos
+pasos, queda registrada como error (con su traza, a diferencia del aviso
+sin traza que ya recibía la organización sin usuario SYSTEM, un estado
+válido y no una falla) y la corrida continúa con la organización
+siguiente. Al vivir en el helper compartido y no en cada cron por
+separado, la corrección alcanzó a los cinco trabajos programados de esta
+sección con un único cambio, la misma ventaja de centralización que ya
+había motivado extraer el helper en la quinta auditoría.
+
 ## 4.6 Capa conversacional y WhatsApp
 
 El Módulo 5 se abrió con el adaptador de IA (P5.1, TASK-46), la pieza que
