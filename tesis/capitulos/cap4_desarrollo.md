@@ -338,6 +338,43 @@ no recibe ni necesita ningún argumento de organización—, dejando la prueba
 de aislamiento real, contra una base de datos de verdad, a la suite ya
 existente.
 
+Una tercera auditoría de código, esta vez contrastando el mismo documento
+de requisitos contra la aplicación de sus propias convenciones internas,
+encontró que la regla según la cual una entrada de auditoría nombra los
+campos modificados y nunca sus valores —fijada al construir la traza
+misma, más arriba en esta sección— se cumplía de forma desigual entre
+servicios que realizan operaciones estructuralmente equivalentes. El
+reemplazo completo de las obras sociales que acepta un profesional y el de
+su grilla de horarios habituales son la misma operación —borrado y
+recreación del vínculo completo— pero solo la segunda registraba la
+cantidad de filas escritas; la primera guardaba la lista íntegra de
+identificadores nuevos. La configuración del umbral de inactividad de
+pacientes por tenant guardaba, junto con la clave modificada, el valor
+numérico nuevo, cuando la clave ya identifica qué cambió sin necesidad del
+valor. El alta, la edición y la baja de un feriado guardaban la fecha del
+recurso en las tres operaciones, incluida la edición, donde la fecha ni
+siquiera es el campo que cambia —solo la descripción lo es—, mientras que
+la baja sí registraba correctamente, junto a esa fecha redundante, la
+cantidad de turnos afectados por la liberación del día. Ninguna prueba ni
+regla de análisis estático hacía cumplir la convención de forma
+transversal, así que cada servicio la había seguido o no según el criterio
+de quien lo escribió en su momento.
+
+La corrección alineó los cuatro puntos señalados con el patrón ya
+correcto, sin modificar la regla ni el servicio de auditoría que la
+aplica: la sustitución de obras sociales pasó a registrar una cantidad,
+igual que la de horarios; la configuración del umbral de inactividad dejó
+de registrar el valor nuevo, conservando solo la clave; y las tres
+operaciones sobre feriados se revisaron por separado en lugar de aplicarles
+una corrección uniforme, porque cada una necesitaba algo distinto —el alta
+no tenía ningún campo no sensible que registrar aparte del identificador
+ya presente como entidad afectada, así que dejó de escribir `detail`; la
+edición pasó a nombrar el campo que efectivamente cambia, siguiendo el
+mismo patrón ya usado en el resto del código para actualizaciones
+parciales; la baja conservó la cantidad de turnos afectados, ya un conteo
+legítimo, y solo perdió la fecha redundante con el identificador de la
+entidad.
+
 ## 4.2 Profesionales
 
 El primer módulo de negocio construido sobre las fundaciones fue el de
