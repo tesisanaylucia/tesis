@@ -3241,6 +3241,51 @@ por estado RESERVADO/CONFIRMADO ya excluye por sí solo cualquier turno que el
 paciente haya completado o al que haya faltado, de modo que un alta
 retroactiva sólo alcanza a turnos que nadie resolvió de una forma u otra.
 
+Una revisión posterior de la misma auditoría encontró que ambas cascadas de
+cancelación —la de la ausencia y, ya extendida por la corrección anterior, la
+del feriado— compartían un mismo punto ciego: las dos se disparan después de
+que la propia transacción que registra la ausencia o declara el feriado ya
+confirmó, en la misma petición HTTP. Si ese disparo fallaba antes de leer
+siquiera qué turnos están afectados —un error transitorio de conexión a la
+base de datos—, la cascada completa no llegaba a ejecutarse, la petición
+terminaba en un error que contradecía el alta ya persistida, y no existía
+ninguna forma de volver a pedirla: reintentar la misma petición fallaba por
+el propio chequeo que prueba que la ausencia o el feriado ya existen.
+
+La corrección introduce, por primera vez en este código base, un patrón de
+*outbox transaccional*: una fila que registra "esta cascada de cancelación
+queda pendiente" se escribe dentro de la misma transacción que crea la
+ausencia o el feriado, de modo que ese hecho no puede perderse en un corte
+entre esa escritura y el disparo del evento que la desencadena. El camino
+habitual, de baja latencia, sigue intacto: apenas la transacción confirma, se
+publica el evento y la cascada corre de inmediato como antes. La novedad es
+que, si esa ejecución inmediata falla, el error queda registrado sobre esa
+misma fila en lugar de propagarse a la petición original —que no debe
+fallar por un problema posterior a su propio éxito—, y un trabajo programado
+nuevo, con la misma cadencia de quince minutos que el resto de los trabajos
+de este módulo, barre periódicamente las filas que quedaron pendientes y
+vuelve a intentar exactamente la misma cascada. El reintento es seguro sin
+necesidad de un mecanismo adicional de idempotencia: ambas cascadas sólo
+tocan turnos que siguen reservados o confirmados, así que un turno que una
+ejecución anterior ya canceló deja de aparecer en la siguiente.
+
+Se descartó deliberadamente la otra alternativa que el propio hallazgo
+proponía, mover la cancelación a la misma transacción que registra la
+ausencia: hacerlo habría exigido que el módulo de profesionales (y el de
+feriados) conocieran directamente la lógica de cancelación de turnos,
+rompiendo el límite que el uso de un puerto de extensión existe justamente
+para sostener —que un módulo señale un hecho propio sin depender de la
+lógica de quien reacciona a él—. La fila de outbox resuelve el mismo
+problema de durabilidad sin ese acoplamiento: quien la escribe conoce sólo
+los mismos datos que ya lleva el evento, nunca la cancelación en sí.
+
+Aprovechando que las dos cascadas —ausencia y feriado— resultaron ser, en la
+práctica, casi el mismo código con una única diferencia real de alcance (un
+profesional frente a todos los de la organización), la corrección extrajo
+primero su lógica común a un único método compartido antes de envolverlo con
+la protección de reintento, de modo que esa protección se escribe una sola
+vez y no se duplica entre ambas cascadas.
+
 ## 4.5 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
