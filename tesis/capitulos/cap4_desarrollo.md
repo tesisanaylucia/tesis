@@ -1030,6 +1030,28 @@ conserva la posibilidad de revisar lo ya ocurrido con un profesional después
 de desvincularlo, de la misma manera en que su ficha completa sigue siendo
 consultable.
 
+Dos auditorías automatizadas independientes, corridas contra las mismas
+fuentes de verdad, coincidieron en un mismo hallazgo sobre la edición
+general del profesional: la entrada de auditoría que ese método deja no
+registraba qué campos había cambiado la petición, a diferencia del resto
+del sistema —la edición de un paciente, la edición del vínculo entre un
+paciente y un profesional, el importador de pacientes y, dentro de este
+mismo capítulo, la edición de un feriado—, que ya construye ese detalle a
+partir de la utilidad compartida `changedFields`. Dos ediciones distintas
+sobre el mismo profesional, por ejemplo cerrar la aceptación de pacientes
+nuevos frente a cambiar el filtro de edad, dejaban entradas idénticas e
+indistinguibles entre sí. La corrección conectó el método al mismo
+mecanismo compartido, sin escribir lógica nueva, replicando la forma en
+que ya lo hace la edición del feriado por ser la más cercana en el código
+existente: el cálculo de los campos cambiados se pasa directamente al
+detalle de la llamada de auditoría dentro de la misma transacción. El
+otro método de escritura del módulo, la edición de la configuración de
+agenda y admisión, quedó deliberadamente fuera de esta corrección pese a
+compartir una carencia parecida —su propio detalle distingue que se trató
+de un cambio de configuración pero tampoco nombra el campo puntual—,
+porque ninguna de las dos auditorías lo señaló y extender el alcance sin
+un hallazgo propio habría sido una corrección no solicitada.
+
 ## 4.3 Pacientes
 
 El segundo módulo de negocio siguió el mismo criterio de apertura que el
