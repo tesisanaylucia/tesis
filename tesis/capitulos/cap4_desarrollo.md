@@ -3308,6 +3308,56 @@ primero su lógica común a un único método compartido antes de envolverlo con
 la protección de reintento, de modo que esa protección se escribe una sola
 vez y no se duplica entre ambas cascadas.
 
+Una tercera revisión de la misma auditoría encontró dos carencias más,
+independientes entre sí, sobre estos mismos dos módulos. La primera afectaba
+a la edición y a la baja de un feriado: ambas resolvían la fila con una
+lectura previa a cualquier transacción y recién después abrían una
+transacción propia para escribir sobre el identificador ya leído, en lugar de
+tratar la lectura y la escritura como una única operación atómica. Dos
+peticiones concurrentes sobre la misma fecha —dos bajas, o una edición y una
+baja— podían pasar esa lectura antes de que la otra confirmara y competir
+después por la escritura: la que llegaba en segundo lugar encontraba la fila
+ya borrada y el error de Prisma correspondiente, sin capturar, se propagaba
+como un error interno del servidor en lugar de responder que el recurso ya no
+existe o que hubo un conflicto que amerita reintentar. La corrección movió la
+lectura adentro de la misma transacción serializable que ya envuelve la
+escritura, reutilizando el mismo mecanismo que ya protege la creación de una
+ausencia o el reemplazo de la grilla horaria: con la lectura y la escritura
+como una sola unidad, una fecha ya inexistente al momento en que la
+transacción toma su fotografía es simplemente un recurso no encontrado, y un
+conflicto genuino con otra transacción concurrente sobre la misma fila es el
+error de reintento que ese mecanismo ya sabe traducir — nunca más un error
+interno sin explicar.
+
+La segunda carencia afectaba a la ausencia: no existía ninguna forma de
+editarla, solo de darla de alta o de baja. Extender una ausencia un solo día
+—el caso concreto que motivó el hallazgo— exigía darla de baja y volver a
+darla de alta, lo que además de perder el motivo original descartaba los
+turnos que la cascada de la ausencia original ya había cancelado —retirar una
+ausencia, por decisión ya tomada y documentada, no restaura lo que su alta
+canceló— y volvía a barrer el rango completo nuevo en busca de turnos por
+cancelar, en lugar de acotarse a los días que la edición realmente agrega. La
+corrección agregó una operación de edición que acepta cualquier subconjunto
+de fecha de inicio, fecha de fin y motivo, reutilizando el mismo chequeo de
+solapamiento que ya usa el alta —ahora excluyendo la propia fila que se
+edita— dentro de la misma clase de transacción serializable, por la misma
+razón: que ninguna ausencia se superponga con otra es un invariante de
+lectura y escritura que una transacción ordinaria no alcanza a proteger bajo
+concurrencia.
+
+El punto no evidente de esta segunda corrección es cómo decide qué cascada de
+cancelación disparar. En lugar de repetir el disparo del alta sobre el rango
+completo de la ausencia ya editada, se calcula primero el sub-rango de días
+que el rango nuevo cubre y el anterior no —ninguno si la edición solo achica
+el rango o lo deja igual, uno si lo agranda por un único extremo, dos si lo
+agranda por ambos extremos a la vez, o el rango completo si la edición lo
+traslada a un período que no toca en absoluto al anterior— y solo por esos
+días efectivamente nuevos se dispara la misma cascada que ya dispara el alta,
+a través del mismo evento y el mismo adaptador, sin necesidad de un tercer
+mecanismo. Un recorte del rango no restaura los turnos que ya se habían
+cancelado, la misma decisión, ahora extendida, que ya regía para la baja
+completa de una ausencia.
+
 ## 4.5 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
