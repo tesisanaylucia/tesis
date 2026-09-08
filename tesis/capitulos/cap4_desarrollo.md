@@ -1001,6 +1001,35 @@ exitosa por el administrador con el profesional de vuelta en el listado activo
 y su marca de baja anulada en la base, y el aislamiento por tenant ante el
 intento de un administrador de otra organización.
 
+Una auditoría automatizada del código contra las fuentes de verdad, corrida
+tras cerrarse la reactivación, encontró que el método de verificación de
+pertenencia al inquilino que ancla los recursos anidados del profesional
+—sus matrículas, sus horarios de atención, sus ausencias, las obras
+sociales que acepta— era también el que usaban, fuera de este módulo, el
+cálculo de disponibilidad y la reserva de turnos, y que ninguno de esos
+puntos filtraba la marca de baja lógica introducida más arriba en esta
+sección: solo el listado de profesionales activos y el inicio de sesión la
+respetaban en todo el sistema. La consecuencia observable era que un
+profesional recién desvinculado seguía teniendo una agenda plenamente
+operable —se le podía consultar disponibilidad y reservarle turnos nuevos—
+pese a que la baja debía haberlo retirado de circulación. La corrección no
+se limitó a agregar el filtro faltante en el método único, porque ese mismo
+método es el que usa la reactivación descripta en el párrafo anterior para
+encontrar al profesional que necesita reactivar: filtrar ahí la baja habría
+dejado a la reactivación sin poder hallar su propio objeto. Se introdujo en
+cambio un segundo método de verificación, que agrega el filtro de baja al
+ya existente, y se reservó su uso a los puntos que representan un
+compromiso nuevo contra el profesional —la disponibilidad, la reserva y la
+reorganización de turnos, la incorporación a una lista de espera, la
+vinculación de un paciente nuevo, y la totalidad de las operaciones de
+matrículas, horarios, ausencias y obras sociales, que el propio hallazgo
+señaló como igualmente desprotegidas—, mientras que las lecturas de un
+historial ya comprometido, como el listado de turnos o de una lista de
+espera ya existente, se dejaron sobre el método original: un administrador
+conserva la posibilidad de revisar lo ya ocurrido con un profesional después
+de desvincularlo, de la misma manera en que su ficha completa sigue siendo
+consultable.
+
 ## 4.3 Pacientes
 
 El segundo módulo de negocio siguió el mismo criterio de apertura que el
