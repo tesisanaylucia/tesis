@@ -3410,6 +3410,57 @@ conserva su lugar en la lista, y agregó cobertura equivalente, en ambos
 niveles (con Prisma simulado y de extremo a extremo contra una base real), a
 la ya existente para el feriado.
 
+Una quinta revisión de la misma auditoría encontró un desfase horario
+sistemático de tres horas entre la hora real y la hora que el motor de
+turnos guarda para cada uno. El servicio de disponibilidad construye la
+grilla de horarios ofrecibles escribiendo la hora de pared de la clínica
+directamente en los campos UTC de un objeto de fecha —una simplificación
+deliberada, ya documentada en el propio código desde su implementación
+original, en ausencia de una configuración de huso horario por tenant— que
+es internamente consistente mientras todo lo que se compara contra un turno
+guardado se construya de la misma forma. El defecto aparece en cualquier
+comparación contra el reloj real: la diferencia horaria de la clínica
+(Argentina, UTC-3, sin horario de verano) queda sin restar, y el resultado
+de la comparación se desplaza exactamente esas tres horas del resultado
+correcto. El caso más severo señalado por la auditoría era el cron semanal
+de completado automático: un turno agendado dos horas en el futuro, hora de
+la clínica, podía quedar marcado como completado antes de haber ocurrido,
+pisando la fecha de última consulta del paciente y dejando al profesional
+sin la posibilidad de marcarlo ausente.
+
+La corrección agregó un único punto de conversión —una función que
+reexpresa el instante real en la misma codificación que ya usa la hora
+guardada de un turno— y lo sustituyó en cada comparación de producción que
+antes usaba el reloj real directamente: el propio cron de completado
+automático, las dos bandas horarias de detección de los crons de
+confirmación y de recordatorio, el chequeo de "la nueva fecha debe ser
+futura" de una reprogramación, el corte de anticipación mínima para
+cancelar un turno, y los dos pisos de "turnos todavía por ocurrir" que
+comparten el listado de turnos activos de un paciente y la regla que
+bloquea la baja lógica o la supresión de datos mientras existan turnos
+pendientes. Deliberadamente quedó fuera de esta corrección la ventana de
+vigencia del código de acceso temporal de la cerradura, cuya columna tiene
+hoy dos orígenes distintos —uno derivado de la hora del turno y otro,
+para la apertura ad-hoc, derivado directamente del reloj real— que no
+comparten la misma codificación; unificar esa comparación sin antes
+unificar el origen del dato habría corregido un caso rompiendo el otro, y
+se dejó registrado como corrección pendiente y dedicada.
+
+El punto no evidente de esta corrección es que ninguna prueba, unitaria ni
+de extremo a extremo, verificaba explícitamente que estos puntos ignoraran
+el desfase horario de la clínica —la propia ausencia de esa prueba explica
+cómo el defecto llegó a producción sin que la suite lo detectara—. Corregir
+la comparación exigió, en cambio, corregir el supuesto incorrecto que ya
+usaban varias de las fixtures existentes, que construían "un turno N horas
+antes o después de ahora" a partir del reloj real en lugar de la hora ya
+reexpresada. Una de ellas —un turno agendado una hora en el futuro, bajo el
+mínimo de cuatro horas de anticipación para cancelar— coincidía
+numéricamente con el desfase mismo de la clínica y quedaba exactamente en
+el límite de la comparación corregida; se detectó porque la prueba
+correspondiente pasó a fallar de forma intermitente al ejecutarse, y se
+resolvió construyendo la fixture sobre la misma conversión que ya usa el
+código de producción.
+
 ## 4.5 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
