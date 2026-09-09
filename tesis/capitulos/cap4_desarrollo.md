@@ -3358,6 +3358,58 @@ mecanismo. Un recorte del rango no restaura los turnos que ya se habían
 cancelado, la misma decisión, ahora extendida, que ya regía para la baja
 completa de una ausencia.
 
+Una cuarta revisión de la misma auditoría volvió sobre la verificación de
+franja libre y sobre el motor de reasignación automática, señalando que
+ninguno de los dos alcanzaba a la ausencia del profesional, la misma omisión
+que antes se había corregido para el feriado. El servicio de disponibilidad
+ya excluía la ausencia al construir la agenda ofrecible, de modo que un
+profesional ausente no aparecía disponible en el calendario que consulta un
+paciente o la aplicación; pero esa exclusión no alcanzaba a la verificación
+de instante puntual que las rutas de escritura consultan cuando reciben una
+fecha y hora ya elegidas, de modo que un administrador o el propio
+profesional podían reservar, o reprogramar, directamente sobre un día de
+ausencia con solo nombrarlo. La segunda mitad del hallazgo reproducía el
+escenario ya corregido para el feriado, ahora con la ausencia como causa: la
+cascada de cancelación que una ausencia dispara sobre los turnos ya
+reservados en su rango (descrita más arriba en esta misma sección) libera
+esas franjas, y el motor de reasignación, que sólo comprobaba el feriado
+antes de reofrecerlas a la lista de espera, podía ofrecer —y dejar aceptar—
+exactamente esas franjas dentro del mismo rango que la ausencia acababa de
+vaciar.
+
+La corrección extiende a la ausencia el mismo mecanismo de dos verificaciones
+ya descrito para el feriado, en los mismos dos puntos. Se agregó al servicio
+de disponibilidad un método propio para la ausencia, con la misma razón de
+ser que ya tiene el método equivalente del feriado: el motor de reasignación
+no puede pasar por la verificación de franja libre completa para su propio
+chequeo, porque el turno que está reasignando es la fila cancelada que él
+mismo retiene, y colisionaría consigo mismo. La verificación de franja libre
+pasa a consultar también ese método nuevo, de modo que la reserva directa y
+la reprogramación —las dos rutas de escritura que ya comparten esa única
+verificación— heredan la corrección sin tocarlas por separado. El motor de
+reasignación incorpora el mismo chequeo en sus dos momentos ya establecidos
+para el feriado: una vez por recorrido, antes de ofrecer la franja a nadie, y
+de nuevo dentro de la transacción que reserva el turno para quien acepta, por
+si la ausencia se registra mientras una oferta ya emitida espera respuesta.
+La excepción que señala esa segunda falla, hasta ahora nombrada únicamente
+por el feriado, se generalizó para nombrar cualquiera de las dos causas, sin
+duplicar el mecanismo de liberación de retención y de propagación que ya la
+acompañaba.
+
+Un aspecto de esta corrección no es evidente y merece constancia: una prueba
+de extremo a extremo ya existente, escrita para el módulo de ausencias,
+verificaba precisamente el defecto que esta corrección elimina. La prueba
+registraba una ausencia sobre la fecha de un turno ya reservado, con un
+candidato en la lista de espera, y afirmaba como resultado esperado que la
+cascada de cancelación liberaba la franja y que el candidato la aceptaba de
+inmediato dentro del mismo rango de ausencia —el propio comportamiento que el
+hallazgo describe como incorrecto, codificado hasta entonces como si fuera el
+correcto—. La corrección reescribió esa prueba para afirmar lo contrario, que
+la franja liberada por la ausencia no se ofrece a nadie y que el candidato
+conserva su lugar en la lista, y agregó cobertura equivalente, en ambos
+niveles (con Prisma simulado y de extremo a extremo contra una base real), a
+la ya existente para el feriado.
+
 ## 4.5 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
