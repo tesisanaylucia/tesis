@@ -3461,6 +3461,81 @@ correspondiente pasó a fallar de forma intermitente al ejecutarse, y se
 resolvió construyendo la fixture sobre la misma conversión que ya usa el
 código de producción.
 
+Una sexta revisión de la misma auditoría encontró dos defectos
+relacionados en la verificación de franja libre, el chequeo que la reserva
+directa y la reprogramación comparten para decidir si un instante puede
+recibir un turno. El primero: solo la reserva de la primera sesión de un
+paciente nuevo, bajo una franja extra configurada, validaba el instante
+elegido contra la grilla real de horario laboral, cadencia y duración del
+profesional; la reserva de un paciente recurrente y toda reprogramación
+pasaban exclusivamente por la verificación de franja libre, que solo
+comprueba ocupación —otro turno, un feriado, una ausencia, una retención en
+curso— sin exigir en ningún momento que el instante elegido coincida con
+algún inicio real de esa grilla. El segundo, independiente del primero: la
+propia verificación de ocupación, y el cálculo de la agenda que ofrece la
+disponibilidad, comparaban por igualdad exacta de instante en vez de por
+solapamiento de intervalo. El escenario que la auditoría citó como ejemplo
+concreto: reconfigurar la cadencia de turnos de sesenta a noventa minutos
+con un turno ya reservado a las diez de la mañana —de cuarenta y cinco
+minutos de duración, hasta las diez y cuarenticinco— hace que la grilla
+recalculada ofrezca las diez y media como instante libre, un horario que en
+los hechos se solapa con la sesión ya reservada porque ninguno de los dos
+instantes coincide literalmente con el otro.
+
+La corrección del segundo defecto reemplazó, en los tres lugares del
+servicio de disponibilidad que decidían ocupación cada uno a su manera, la
+comparación por igualdad exacta por una única función que compara rangos
+—el inicio de un turno más su propia duración, nunca la duración *actual*
+configurada para el profesional, que puede haber cambiado desde que ese
+turno se reservó—. La corrección del primer defecto extrajo la
+construcción de la grilla habitual, ya compartida internamente por el
+cálculo de disponibilidad, a un método propio que responde únicamente si un
+instante es un inicio real de esa grilla, sin mirar ocupación, y lo conectó
+en los dos puntos que hasta entonces carecían de él: la reserva de un
+paciente recurrente, o de un paciente nuevo sin franja extra configurada
+todavía, y toda reprogramación, sin excepción según el tipo de turno que se
+mueve.
+
+Dos decisiones de esta corrección merecen constancia porque se apartan de
+la letra literal del hallazgo, sin apartarse de su intención. La primera:
+el hallazgo sugería conectar el nuevo control de grilla directamente dentro
+de la propia verificación de franja libre, de modo que todo llamador quedara
+sujeto a él por igual. Eso habría sido incorrecto, porque las dos
+modalidades de franja extra que colocan la primera sesión de un paciente
+nuevo antes o después de la jornada habitual lo hacen deliberadamente
+*fuera* de la grilla habitual —esa es la razón de ser de esa regla,
+descrita ya en una revisión anterior de este mismo capítulo— y conectar el
+control allí habría rechazado toda reserva bajo esas dos modalidades, un
+defecto nuevo al corregir uno viejo. El control de grilla se conectó, en
+cambio, como una verificación explícita y separada, aplicada exactamente
+donde la validación específica de la franja extra no se aplica ya. La
+segunda: se decidió exigir el control de grilla en toda reprogramación sin
+excepción, incluida la que mueve la primera sesión de un paciente nuevo
+colocada originalmente por una franja extra, aunque eso le impide moverse a
+otra posición igualmente fuera de la grilla habitual. Se descartó eximirla,
+porque la reprogramación mueve un turno a la vez y no tiene ningún
+mecanismo que mueva junto con él la otra mitad de su turno doble, de modo
+que permitir esa reprogramación ya dejaba a la pareja desincronizada por una
+razón ajena a esta corrección.
+
+El punto no evidente de esta corrección, otra vez, está en las pruebas: la
+validación de grilla, correcta pero antes inexistente, expuso que varias
+pruebas de extremo a extremo ya existentes reservaban o reprogramaban
+turnos contra profesionales sin ningún horario laboral configurado, o hacia
+instantes construidos a partir del reloj real sin redondear a un múltiplo
+de media hora —instantes que la comparación por igualdad exacta nunca exigió
+que fueran reales, pero que la grilla sí exige ahora—. Corregir esas
+fixtures expuso, a su vez, una colisión latente ya presente en su propio
+diseño: varias pruebas de un mismo archivo comparten un profesional sin
+limpieza entre pruebas, y confiaban en la resolución de milisegundos del
+reloj real para no chocar entre sí al elegir un instante "arbitrario"; una
+vez que ese instante se redondea a la grilla de media hora, dos pruebas
+independientes podían terminar eligiendo, por pura coincidencia temporal,
+el mismo instante ya ocupado por otra. Se resolvió introduciendo, en el
+archivo afectado, un contador de horas monotónico compartido por todas sus
+pruebas, que le da a cada instante usado en el archivo su propio bloque de
+media hora sin colisión posible.
+
 ## 4.5 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
