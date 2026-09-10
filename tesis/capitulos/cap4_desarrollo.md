@@ -3536,6 +3536,59 @@ archivo afectado, un contador de horas monotónico compartido por todas sus
 pruebas, que le da a cada instante usado en el archivo su propio bloque de
 media hora sin colisión posible.
 
+Una séptima revisión de la misma auditoría encontró dos defectos
+relacionados: ni la reserva directa de un turno ni el recorrido de
+reasignación automática de la lista de espera verifican que el instante
+elegido siga siendo futuro al momento de escribir. La reprogramación ya
+tenía, desde su implementación original, un chequeo explícito de "la nueva
+fecha debe ser futura"; la reserva directa nunca lo tuvo, pese a apoyarse en
+la misma agenda de disponibilidad —que, por construcción, puede seguir
+ofreciendo un instante que el reloj de la clínica ya alcanzó, ya que su
+grilla de horarios es deliberadamente ajena a "ahora"—. El recorrido de
+reasignación de la lista de espera presentaba una variante más sutil del
+mismo problema: cada candidato recibe hasta cuatro horas de ventana para
+responder una oferta, así que un recorrido que alcanza a varios candidatos
+sucesivos, o un candidato que acepta cerca del cierre de su propia ventana,
+puede terminar reservando —o incluso confirmando— un turno cuyo instante
+original ya pasó, o que ya empezó.
+
+La corrección agregó, en la reserva directa, el mismo chequeo que ya tiene
+la reprogramación, aplicado antes de cualquier otra validación sobre el
+instante recibido; en el servicio de disponibilidad, un filtro equivalente
+que excluye de la agenda ofrecida todo instante ya alcanzado, tanto en su
+cálculo habitual como en la franja extra que coloca la primera sesión de un
+paciente nuevo fuera de esa grilla; y en el motor de reasignación de la
+lista de espera, dos chequeos —uno al comienzo de cada avance del
+recorrido, antes incluso de comprobar feriados o ausencias, que termina el
+recorrido sin ofrecer nada si el instante ya no es futuro; y otro, repetido
+dentro de la misma transacción que crea el turno de reemplazo, por la misma
+razón ya documentada para la reprogramación: el primer chequeo corre contra
+un "ahora" que puede quedar obsoleto para cuando el candidato finalmente
+responde. Deliberadamente se dejó sin tocar la construcción de la grilla
+habitual en sí misma, que también respalda la verificación de pertenencia a
+esa grilla usada al validar un turno ya existente —una comparación que debe
+seguir aceptando un instante pasado—, de modo que el nuevo filtro se aplicó
+únicamente donde la agenda ofrece un instante nuevo, no donde se valida uno
+ya dado.
+
+El punto no evidente de esta corrección repite, una vez más, el patrón ya
+señalado en revisiones anteriores de este mismo capítulo: varias pruebas,
+tanto unitarias como de extremo a extremo, fijaban el instante de un turno a
+una fecha calendario concreta en lugar de construirlo en relación con el
+reloj de la clínica, y el simple paso del tiempo real las había dejado en el
+pasado sin que nada lo notara hasta que estos chequeos nuevos empezaron a
+rechazarlas. Se corrigieron ancladas al mismo mecanismo de conversión que
+ya usa el código de producción, salvo en el caso de las pruebas cuya fecha
+también determina el día de la semana —y, con él, qué horario laboral
+aplica—, donde se optó por fijar el reloj de la prueba a un instante muy
+anterior a sus propias fechas en vez de reescribirlas, para no perder esa
+dependencia deliberada del día. La ejecución completa de ambas suites quedó
+en verde salvo una prueba de extremo a extremo preexistente y ajena a esta
+corrección, intermitente en una ventana acotada de tiempo real por
+coincidir con el límite de cierre de una jornada de prueba —reproducida sin
+ninguno de los cambios de esta corrección, y documentada como tal en lugar
+de forzada a pasar.
+
 ## 4.5 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
