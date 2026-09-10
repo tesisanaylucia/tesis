@@ -3589,6 +3589,43 @@ coincidir con el límite de cierre de una jornada de prueba —reproducida sin
 ninguno de los cambios de esta corrección, y documentada como tal en lugar
 de forzada a pasar.
 
+Una octava revisión de la misma auditoría encontró que la consulta de
+candidatos del cron de auto-cancelación por falta de confirmación no
+acotaba en absoluto el horario de los turnos que consideraba: un proceso
+detenido durante varias horas —un despliegue, un reinicio, una caída— podía,
+al reanudarse, encontrar turnos cuyo plazo de respuesta de cuatro horas ya
+estaba vencido según el cálculo de la fecha límite, sin que importara si el
+turno mismo ya había empezado o estaba a punto de empezar. El caso extremo
+que la propia auditoría describe: el proceso cae un domingo por la noche y
+se recupera el lunes por la mañana con un turno a solo una hora de
+distancia, paciente ya en camino; al reanudarse, el cron lo cancela y
+dispara la cascada de reasignación de lista de espera sobre un horario que,
+por tener apenas una hora de margen, no le da tiempo a la primera oferta de
+esa cascada —con su propia ventana de cuatro horas— para cerrarse antes de
+que el turno original ya haya pasado.
+
+La corrección agregó un piso explícito a la consulta de candidatos —el
+horario del turno debe seguir siendo futuro respecto del reloj de la
+clínica— en vez de un tope adicional sobre el plazo ya calculado: un turno
+que la consulta excluye por completo deja de ser candidato sin importar
+cuán vencido esté su plazo de no-respuesta, mientras que un tope sobre el
+resultado del cálculo solo desplazaría el momento en que la comparación en
+memoria lo descarta, sin resolver el caso de un turno cuyo plazo se evalúa
+por primera vez varias horas después de que su propio horario ya llegó. Un
+turno excluido de este modo no queda sin resolución: se apoya en el mismo
+barrido semanal de completado automático que ya existe desde una fase
+anterior de este mismo módulo, que termina marcándolo completado una vez
+que efectivamente finaliza —el mismo desenlace que recibe cualquier turno
+que nadie resolvió a tiempo por cualquier otro motivo—, en lugar de crear un
+mecanismo de revisión manual nuevo sin precedente en el código para un caso
+que el mecanismo existente ya cubre. Como consecuencia directa de este piso,
+el tope que una corrección anterior de este mismo capítulo había agregado
+sobre el plazo calculado —capándolo al propio horario del turno, para no
+vencerlo después de empezado— quedó sin ningún camino de ejecución posible,
+ya que todo candidato que la nueva consulta deja pasar cumple por
+construcción que su horario todavía no llegó; se eliminó ese tope en la
+misma corrección en lugar de dejarlo como código sin efecto observable.
+
 ## 4.5 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
