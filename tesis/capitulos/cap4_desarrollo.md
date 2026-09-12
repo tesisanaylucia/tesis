@@ -4151,6 +4151,44 @@ misma corrección, hasta después de que el envío efectivamente se
 concreta, para que la auditoría del sistema no llegue a registrar un envío
 exitoso sobre un mensaje que en los hechos falló.
 
+Una décima auditoría, sobre el propio job de recordatorio descripto más
+arriba en esta sección, encontró dos fallas relacionadas. La primera es que
+el valor por defecto de la ventana de recordatorio —24 horas, elegido en su
+momento precisamente porque coincidía con la ventana del job de
+confirmación— junto con el ancho de banda de detección de una hora hacia
+cada lado que ese job reutiliza del de confirmación, reproducía exactamente
+la misma banda de 23 a 25 horas que ya usa la confirmación. Para cualquier
+organización que nunca personalizara esa configuración, el caso esperable y
+no un caso extremo, un turno recibía el pedido de confirmación y, dentro de
+la misma hora en que el paciente respondía, un recordatorio redundante sobre
+algo que acababa de confirmar. La segunda falla estaba en el propio texto de
+la plantilla: decía "mañana" de forma fija, aunque la ventana de recordatorio
+es explícitamente configurable por inquilino a cualquier cantidad positiva de
+horas de anticipación —un inquilino configurado a dos horas recibía "mañana"
+el mismo día en que el turno era, y uno configurado a cuarenta y ocho horas
+recibía "mañana" sobre un turno que en realidad era pasado mañana.
+
+La corrección al valor por defecto lo bajó de veinticuatro a dos horas,
+separando con margen amplio la ventana de recordatorio de la banda fija de
+confirmación sin acercarse al otro límite de negocio existente en las
+inmediaciones, el umbral de cuatro horas de la cancelación automática por
+falta de confirmación. La corrección al texto reemplazó la palabra fija
+"mañana" por un marcador nuevo, calculado en el propio job a partir de la
+brecha real en días de calendario entre el instante en que el recordatorio
+se envía y el horario del turno —no a partir del valor de configuración de
+horas de anticipación—, de modo que el texto queda correcto sin importar qué
+ventana produjo ese envío en particular: "hoy" si el turno cae el mismo día
+de calendario que el envío, "mañana" si cae exactamente un día después, o la
+fecha literal para cualquier brecha mayor. Derivarlo de la brecha real y no
+de un mapeo fijo sobre el valor configurado evita que el propio margen de
+una hora que introduce la banda de detección, o un valor de configuración
+atípico, produzcan una palabra equivocada. El formateo de fecha que ese
+tercer caso necesita se extrajo, dentro del mismo archivo de formateo
+compartido de notificaciones, a una función privada que ya reutiliza el
+formateador de fecha y hora completos — la misma clase de duplicación que
+una auditoría anterior de esta sección ya había encontrado una vez entre
+los dos jobs, ahora evitada dentro de un mismo archivo en lugar de entre dos.
+
 ## 4.6 Capa conversacional y WhatsApp
 
 El Módulo 5 se abrió con el adaptador de IA (P5.1, TASK-46), la pieza que
