@@ -4105,6 +4105,52 @@ separado, la corrección alcanzó a los cinco trabajos programados de esta
 sección con un único cambio, la misma ventaja de centralización que ya
 había motivado extraer el helper en la quinta auditoría.
 
+Una novena auditoría encontró dos fallas relacionadas en el propio job de
+confirmación descripto más arriba en esta sección y en el job de
+cancelación automática que depende de él. La primera es que la ventana de
+detección, al definirse siempre hacia adelante desde el instante de cada
+corrida, nunca podía alcanzar a un turno reservado con menos de 23 horas de
+anticipación: si al momento de la reserva ya faltaban menos de 23 horas
+para la cita, el turno jamás llegaba a estar dentro del rango de 23 a 25
+horas en ninguna corrida futura del job horario, porque el tiempo que falta
+hasta la cita sólo puede acortarse con el paso del tiempo, nunca volver a
+entrar en un rango que ya quedó atrás. Ese turno quedaba entonces sin
+solicitud de confirmación enviada nunca, y por lo tanto también sin la
+posibilidad de que el paciente confirmara. La segunda falla estaba en el
+orden de las operaciones dentro del propio job: la columna que registra el
+envío de la solicitud se escribía, junto con el asiento de auditoría, antes
+de renderizar y enviar efectivamente el mensaje. Si ese envío fallaba —una
+falla del proveedor de mensajería, o un error de renderizado— la columna
+quedaba de todos modos marcada como enviada, y el job de cancelación
+automática por falta de confirmación, que sólo mira esa columna para saber
+si corresponde iniciar el plazo de cuatro horas de espera, cancelaba el
+turno pasado ese plazo por "falta de confirmación" sobre un mensaje que en
+los hechos nunca había llegado a salir.
+
+La corrección a la primera falla hace que la propia reserva del turno, y no
+únicamente la corrida horaria del job, sea capaz de disparar la solicitud
+de confirmación: si al reservarse el turno la anticipación ya es menor o
+igual a la cota superior de la ventana de detección, la solicitud se envía
+de inmediato como parte de la misma operación de reserva, en lugar de
+esperar a una corrida del job que —para ese turno en particular— podría
+llegar demasiado tarde o no llegar nunca. La secuencia de guardas, envío y
+registro de auditoría se extrajo a un servicio propio, separado del job,
+precisamente para que la reserva de turnos y la corrida horaria pudieran
+compartir la misma lógica sin duplicarla: la única diferencia entre ambos
+casos es quién decide que un turno determinado corresponde procesar ahora,
+no cómo se procesa una vez decidido. La corrección a la segunda falla
+invirtió el orden de las operaciones dentro de ese servicio compartido: la
+columna que marca la solicitud como enviada se escribe primero, para
+reservar el turno frente a una corrida concurrente que pudiera estar
+procesándolo al mismo tiempo, pero si el renderizado o el envío fallan
+después de esa marca, la corrección deshace la escritura y deja la columna
+otra vez sin marcar, de modo que una corrida posterior —mientras el turno
+siga dentro de la ventana— pueda reintentar el envío en lugar de darlo por
+hecho. El asiento de auditoría que certifica el envío se retrasó, en la
+misma corrección, hasta después de que el envío efectivamente se
+concreta, para que la auditoría del sistema no llegue a registrar un envío
+exitoso sobre un mensaje que en los hechos falló.
+
 ## 4.6 Capa conversacional y WhatsApp
 
 El Módulo 5 se abrió con el adaptador de IA (P5.1, TASK-46), la pieza que
