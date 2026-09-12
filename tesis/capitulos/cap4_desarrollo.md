@@ -4189,6 +4189,29 @@ formateador de fecha y hora completos — la misma clase de duplicación que
 una auditoría anterior de esta sección ya había encontrado una vez entre
 los dos jobs, ahora evitada dentro de un mismo archivo en lugar de entre dos.
 
+Una undécima auditoría, también de cotejo entre el código y el documento de
+requisitos, volvió sobre la migración de datos que siembra el texto base de
+cada plantilla en la configuración de cada organización, descripta más
+arriba en esta sección, y encontró que esa migración original insertaba
+sólo cinco de las siete claves de plantilla que existían para entonces: las
+dos correspondientes al aviso y a la solicitud de confirmación de
+reprogramación de turno se habían agregado a la lista de plantillas después
+de que esa migración ya se hubiera escrito y aplicado, sin que ninguna
+migración posterior la completara. El seed de desarrollo sí recorre la
+lista completa de claves, de modo que una organización creada después del
+hallazgo recibía las dos filas sin problema; una organización ya existente,
+en cambio, no tenía fila propia para ninguna de las dos y dependía
+enteramente de la constante del código, exactamente el problema que la
+propia migración original existe para evitar. La corrección agregó una
+migración de datos nueva, con la misma condición de no sobrescribir una
+fila que la organización ya hubiera personalizado, que inserta el texto
+base de esas dos claves para toda organización existente. No fue necesario
+tocar el motor de plantillas ni el seed, porque ninguno de los dos tenía el
+defecto: el primero ya prefiere la fila de configuración sobre la constante
+cuando existe alguna, y el segundo ya declara la lista de claves recorriendo
+el enumerado completo en lugar de una lista propia que hubiera podido
+quedar desactualizada de la misma manera que la migración.
+
 ## 4.6 Capa conversacional y WhatsApp
 
 El Módulo 5 se abrió con el adaptador de IA (P5.1, TASK-46), la pieza que
