@@ -4870,6 +4870,32 @@ monetario introducido previamente; el manual de flujos se lo indica al
 modelo de forma explícita, de modo que la instrucción y el guardrail
 apuntan en la misma dirección en lugar de contradecirse.
 
+Una auditoría posterior de código contra las fuentes de verdad detectó que
+esa decisión había ido más allá de lo que el guardrail monetario en
+realidad exige: el ticket original de guardrails describe una única regla
+de "no montos", y tanto ella como la instrucción del manual de flujos
+bloqueaban cualquier cifra en pesos, incluido el total de la consulta que
+el documento de requisitos exige informar. El documento distingue dos
+reglas distintas —mostrar el importe total de la consulta (con obra social
+provincial, como el valor base más "copago"; particular, como un único
+valor) y no revelar nunca el monto del copago en sí— que la implementación
+original había fusionado en una sola. La corrección agregó una columna de
+importe por profesional (`consultationFee`, en pesos sin centavos, con el
+mismo significado dual que ya tenía `careType`: base del cálculo con obra
+social o valor particular completo, según el tipo de atención), la expuso
+en la misma herramienta que ya entregaba el tipo de atención y las obras
+sociales aceptadas, y dividió la regla de guardrail en dos: el
+reconocimiento de un monto en pesos dejó de bastar por sí solo para
+bloquear una respuesta, y la palabra "copago" —ya no "costo" ni "precio",
+que son como se nombra ahora el total permitido— pasó a ser condición
+necesaria, salvo cuando el monto aparece exactamente en la forma aditiva
+que el documento de requisitos prescribe para el total con obra social
+("importe + copago"), reconocida y excluida explícitamente antes de
+evaluar la regla. El manual de flujos se reescribió en el mismo sentido:
+informa el total según el tipo de atención y remite al copago únicamente
+con el texto ya acordado con el guardrail, en lugar de negar cualquier
+cifra.
+
 La respuesta a preguntas frecuentes ya existía como herramienta y
 devolvía la ausencia de coincidencia como un resultado exitoso —la
 clínica simplemente no tiene una fila para esa pregunta— y no como un
