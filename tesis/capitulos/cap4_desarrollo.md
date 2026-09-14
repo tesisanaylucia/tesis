@@ -1924,6 +1924,41 @@ del mismo controlador. La corrección no agregó código de autorización nuevo:
 reutilizó el par de comprobaciones existente, cambiando únicamente cuál de
 las dos protege la escritura de la prioridad.
 
+La misma auditoría del 26 de agosto de 2026 que ya había producido los
+hallazgos SEC 7 y SEC 8 sobre otros módulos señaló, en este, una
+inconsistencia entre los dos listados generales del sistema: el de turnos
+ya aceptaba `limit`/`offset` desde su propia tarea de listado, mientras que
+el de pacientes no tenía ninguna cota y devolvía el padrón completo del
+inquilino, con sus relaciones anidadas, en cada llamada sin filtro por DNI
+— el listado con más riesgo de crecer sin límite, dado que la baja de un
+paciente es lógica y nunca hay una eliminación física del registro. La
+corrección espejó al detalle el DTO de turnos —los mismos validadores, el
+mismo criterio de resolver el valor por defecto en el servicio y no en la
+validación de entrada— y llevó el propio método de listado al mismo patrón
+de `skip`/`take` más `count` en paralelo que ya usan la agenda de turnos,
+la lectura de auditoría de un paciente y el feed de notificaciones in-app.
+A diferencia de esas tres, el método siguió devolviendo entidades
+completas en un sobre propio, no la forma que expone la API: un segundo
+llamador interno —la identificación del paciente por DNI que ejecuta el
+chatbot antes de cada reserva— depende de recibir la entidad cruda de ese
+mismo método, y mapearla a la respuesta pública dentro del servicio, como
+hacen los otros tres listados, le habría quitado el campo que ese llamador
+necesita. Al escribir la prueba de paginación de esta misma tarea se
+encontró, además, un defecto latente en el ordenamiento que el listado ya
+tenía desde antes: sin una columna única como desempate final, dos
+pacientes con el mismo nombre y apellido —una coincidencia común, no
+hipotética— no tienen ningún orden garantizado entre dos llamadas
+paginadas separadas, lo que podía hacer que una fila se repitiera o se
+omitiera al cruzar el límite entre una página y la siguiente. Se agregó el
+identificador del paciente como tercer criterio de ordenamiento, sin
+alterar el criterio de negocio —apellido y después nombre— que el listado
+ya aplicaba. La misma falta de desempate es teóricamente posible en los
+otros dos listados paginados del sistema (turnos, ordenados por fecha y
+hora del turno; auditoría de un paciente, ordenada por su marca de
+tiempo), pero corregirlos quedó fuera del alcance de este hallazgo, que
+nombraba únicamente el listado de pacientes, y se deja señalado como un
+hallazgo colateral para una auditoría futura.
+
 ## 4.4 Motor de Turnos
 
 El módulo de Turnos comenzó, igual que Profesionales y Pacientes antes que él, por
