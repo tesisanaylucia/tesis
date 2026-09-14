@@ -5497,6 +5497,33 @@ generación (reintentos agotados → sin código activo ni envío → asiento en
 `LockLog` y en `REGISTRO_AUDITORIA` → notificación al profesional → turno
 igual CONFIRMADO), contrastado con la Figura 48.
 
+Una auditoría de código posterior contra el SRS (TASK-178) encontró que la
+distinción entre `LockLog` y `REGISTRO_AUDITORIA` que TASK-59 había fijado
+para la *falla* de generación o revocación dejaba un vacío simétrico en el
+caso de *éxito*: ni `generateForAppointment` ni `revokeForAppointment`
+escribían nunca un asiento propio en `AuditLog` cuando el código
+efectivamente se generaba o se revocaba, así que `REGISTRO_AUDITORIA` por sí
+sola no podía responder si a un turno se le había otorgado o revocado acceso
+físico y cuándo —el asiento `CONFIRM`/`CANCEL`/`RESCHEDULE` que
+`AppointmentsService` ya escribe registra que el turno cambió de estado,
+nunca que además se generó o se revocó un `CODIGO_ACCESO`—. Se agregaron dos
+acciones nuevas, `ACCESS_CODE_GENERATE` y `ACCESS_CODE_REVOKE`, cada una
+escrita dentro de la misma transacción que la fila `AccessCode` que
+describe: la de generación, dentro de la transacción serializable que ya
+persiste el código (CER 5, TASK-170); la de revocación, envolviendo en una
+transacción nueva una actualización a `REVOKED` que hasta entonces era una
+llamada suelta. La revocación audita el cambio de estado siempre, incluso
+cuando la eliminación en TTLock falló y ya generó su propio asiento
+`ACCESS_CODE_ERROR` de TASK-59 —ambos asientos describen cosas distintas y
+pueden coexistir para el mismo evento—, porque el código de todos modos
+termina anulado "igualmente" sin importar la respuesta de la cerradura, la
+misma garantía que TASK-57 ya documentaba. Necesitar `patientId` para el
+nuevo asiento de revocación —la misma regla de "toda mutación relacionada
+con un paciente pasa `patientId`" que ya cumplían `recordFailure` y
+`generateAdhoc`— llevó a que `revokeForAppointment` cargue el turno una
+única vez al principio del método, en lugar de sólo dentro de la rama de
+fallo como hacía hasta entonces.
+
 ## 4.9 Endurecimiento, cumplimiento y piloto
 
 Antes de continuar con los módulos siguientes se realizó una auditoría del
