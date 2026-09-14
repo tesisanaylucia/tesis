@@ -5708,9 +5708,13 @@ clave primaria— hace ese acotamiento innecesario.
 Sobre esa misma base de seguridad se implementó el segundo módulo de
 cumplimiento normativo (P8.2): una política de retención de datos, la
 verificación de que el registro de auditoría no guarda contenido del
-paciente, y tres endpoints administrativos que implementan los derechos de
-acceso, supresión y rectificación de los Arts. 14 y 16 de la Ley 25.326.
-Ni la especificación de requisitos ni el anteproyecto de la tesis fijan un
+paciente, y —completado en dos etapas, la segunda a partir de un hallazgo
+de una auditoría de código posterior (SEC 8)— cuatro endpoints
+administrativos que implementan el derecho de acceso, supresión y
+rectificación de los Arts. 14 y 16 de la Ley 25.326, el primero de ellos
+por partida doble: sobre el propio registro del paciente y, después, sobre
+la traza de auditoría que registra qué se hizo con ese registro. Ni la
+especificación de requisitos ni el anteproyecto de la tesis fijan un
 plazo concreto de retención para ningún tipo de dato, de modo que los
 plazos elegidos —cinco años desde cada entrada de auditoría antes de ser
 archivada, y cinco años desde la baja o supresión de un paciente antes de
@@ -5729,7 +5733,7 @@ calcula qué campos cambiaron en una edición—, sino dejar esa propiedad
 registrada explícitamente como regla documentada tras recorrer cada punto
 del código que escribe una entrada de auditoría.
 
-Los tres endpoints de derechos del titular se organizaron en un módulo
+Los cuatro endpoints de derechos del titular se organizaron en un módulo
 propio, distinto del módulo de pacientes existente, porque la exportación
 de datos necesita leer también los turnos y las solicitudes de receta del
 paciente —entidades de otros dominios— y el módulo de turnos ya depende
@@ -5738,7 +5742,7 @@ cerrado un ciclo de importación. El nuevo módulo se ubica por encima de
 ambos y lee esas tablas directamente con el cliente de base de datos de
 alcance por tenant, sin depender del servicio de turnos, siguiendo el
 mismo patrón que ya usa el servicio de disponibilidad para leer feriados y
-turnos. Las tres operaciones se auditan con nombres de acción propios,
+turnos. Las cuatro operaciones se auditan con nombres de acción propios,
 distintos de los que ya usa la edición administrativa ordinaria de un
 paciente, de modo que una consulta de cumplimiento pueda distinguir una
 solicitud formal de derechos de una edición rutinaria. La supresión no es
@@ -5768,6 +5772,33 @@ respuesta del paciente lo excluye por construcción. Finalmente, se
 reverificó que el consentimiento informado sigue siendo condición
 necesaria para reservar un turno, tal como lo habían implementado tareas
 anteriores, sin que esta tarea necesitara modificar esa validación.
+
+Una auditoría de código posterior contra la especificación de requisitos
+(SEC 8) encontró que el propio comentario del esquema de la base de datos
+que justifica la clave foránea `AuditLog.patientId` —"todo lo que se le
+hizo a este paciente"— describía una consulta de cumplimiento que ningún
+endpoint respondía realmente: el sistema escribía una entrada de
+auditoría por cada acción sobre un paciente desde la primera fase, pero
+sólo una consulta directa a la base de datos podía leer esa traza. Se
+cerró ese hallazgo agregando un cuarto endpoint al mismo módulo,
+`GET /admin/pacientes/:id/auditoria`, que devuelve la traza de auditoría
+de un paciente paginada y ordenada de la más reciente a la más antigua,
+con el mismo esquema `limit`/`offset` que ya usa el listado de
+notificaciones. Es, en los mismos términos que ya aplica la exportación,
+el derecho de acceso del Art. 14 —pero sobre la traza de acciones, no
+sobre el registro del paciente en sí—, así que se sumó al módulo de
+derechos del titular ya existente en lugar de crear uno nuevo, con su
+propio nombre de acción de auditoría (`VIEW_PATIENT_AUDIT_LOG`) para que
+una consulta de cumplimiento pueda distinguir también quién llegó a
+consultar el historial completo de un paciente. La especificación de
+requisitos, generada automáticamente por la propia auditoría de código
+que encontró el hallazgo, sugería literalmente la ruta
+`GET /pacientes/:id/auditoria`, sin el prefijo administrativo; se
+descartó ese literal a favor de mantener la ruta bajo
+`/admin/pacientes/:id`, junto a exportación, supresión y rectificación,
+ya que ese hallazgo estaba explícitamente marcado como pendiente de
+validación humana antes de implementarse y las tres rutas hermanas ya
+establecían la convención real del sistema para esta clase de endpoint.
 
 El tercer y último módulo de esta fase de endurecimiento (P8.3) consolidó
 la suite de tests del sistema completo y su cobertura, cerrando lo que
