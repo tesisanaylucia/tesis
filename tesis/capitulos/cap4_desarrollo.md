@@ -375,6 +375,60 @@ parciales; la baja conservó la cantidad de turnos afectados, ya un conteo
 legítimo, y solo perdió la fecha redundante con el identificador de la
 entidad.
 
+Una auditoría de código multi-agente posterior, contrastando nuevamente el
+código contra el documento de requisitos, señaló que ninguna ruta permitía
+en realidad dar de alta el login de un profesional: el cifrado de
+contraseñas solo aparecía en el script de siembra y en las pruebas, el
+alta de un profesional creaba únicamente su registro sin ninguna cuenta
+vinculada, y el controlador de usuarios exponía solo una lectura. El
+hallazgo se marcó inicialmente como de prioridad baja y a confirmar, no
+como un hueco a resolver, porque una revisión anterior del documento de
+requisitos sugería que la administración de usuarios podía estar delegada
+a un sistema de seguridad corporativo externo. Al revisar la revisión
+vigente de ese documento se confirmó lo contrario: el "Módulo Seguridad –
+Gestión de Roles de Usuarios" —perfiles, roles, facultades y usuarios,
+estructurados dentro de la propia plataforma— pasó a figurar entre los
+módulos que el sistema sí administra. Con esa confirmación, la ausencia de
+una acción administrativa para dar de alta un login dejó de ser una
+decisión de alcance pendiente de confirmar y pasó a resolverse como la
+funcionalidad faltante que la auditoría había detectado, evitando que
+poner en producción el login de un profesional nuevo siguiera dependiendo
+de un acceso directo a la base de datos.
+
+Se agregó una ruta de creación de usuarios, restringida al rol
+administrador, que da de alta una cuenta de acceso para un profesional ya
+existente —vinculándola a su identificador— o para otro administrador. El
+rol solicitado se restringe a administrador o profesional; el rol
+reservado para procesos internos queda excluido de esta vía, igual que ya
+lo estaba del inicio de sesión manual. El identificador de profesional se
+exige cuando el rol es profesional y se prohíbe en cualquier otro caso,
+reproduciendo a nivel de aplicación la misma restricción que ya ataba
+ambos campos en la base de datos. La verificación de que ese profesional
+pertenece a la misma organización que quien hace la solicitud se resolvió
+consultando directamente la tabla de profesionales a través del cliente
+acotado por tenant, en lugar de delegarla al servicio de profesionales:
+ese módulo ya depende del de usuarios —lo necesita para revocar tokens al
+dar de baja a un profesional—, así que una dependencia en sentido inverso
+habría cerrado un ciclo entre ambos. Tampoco se exigió que el profesional
+estuviera activo para poder crear una cuenta a su nombre, porque esa
+condición ya la aplica el inicio de sesión de forma independiente, sin que
+exigirla de nuevo en el alta aporte una protección adicional. La
+contraseña se cifra con el mismo mecanismo y factor de costo que usa el
+resto del código, y un correo electrónico duplicado se tradujo en un
+código de conflicto en lugar de una solicitud mal formada, con el mismo
+criterio que ya distinguía, en el resto del sistema, una colisión de una
+clave natural única —el documento de identidad de un paciente— de una
+violación de unicidad que ocurre enteramente dentro de una única
+solicitud.
+
+Se consideró incorporar la creación de la cuenta directamente en el alta
+del profesional, de modo que una única solicitud creara ambas cosas a la
+vez. Se descartó porque el alta de un profesional y el alta de su cuenta
+de acceso resultaron ser, en la práctica ya observada en el propio código
+señalado por la auditoría, dos decisiones administrativas independientes
+con su propio momento, sin que nada en el documento de requisitos ni en el
+código existente sujetara la segunda a la primera.
+
 ## 4.2 Profesionales
 
 El primer módulo de negocio construido sobre las fundaciones fue el de
