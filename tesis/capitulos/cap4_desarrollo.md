@@ -5237,6 +5237,43 @@ observada, no como corrección sugerida, y habría bloqueado el caso legítimo
 de una segunda solicitud genuina en un turno distinto — la corrección real
 está en el webhook, que es donde se originaba la repetición.
 
+La misma auditoría del 28 de agosto de 2026 dejó un segundo hallazgo, de
+prioridad media, sobre el propio orquestador (P5.3, TASK-48) y no ya sobre
+el controlador HTTP que lo invoca: aunque `OrquestadorService.runTools` ya
+ejecuta secuencialmente las herramientas *dentro* de un mismo turno, nada
+serializaba dos llamadas concurrentes a `procesar()` para el mismo
+`sessionId` — un webhook reentregado bajo un wamid distinto al que TASK-183
+ya deduplica, o un paciente tocando enviar dos veces bastan para
+dispararlo. Ambas ejecuciones leían el mismo historial previo desde
+`ConversationSessionStore.history()` antes de que ninguna de las dos
+hubiera guardado el suyo, podían ejecutar herramientas con estado de forma
+independiente sobre ese mismo turno —por ejemplo, las dos intentando
+`book_appointment` o `request_prescription`— y competían en `save()`: la
+última escritura ganaba y el turno completo de la otra desaparecía en
+silencio del historial de contexto, agravando directamente el propio
+hallazgo de idempotencia de TASK-183, que sólo cubre la reentrega del mismo
+wamid, no dos mensajes distintos y concurrentes de la misma sesión.
+
+La corrección agregó `SessionTurnQueue`, una cola en memoria de un solo
+proceso, indexada por `sessionId`, que `procesar` usa para envolver el
+turno completo —apertura del contexto de inquilino, apertura del contexto
+conversacional y `runTurn`— antes de que corra, en lugar de serializar sólo
+alrededor de `runTurn`: dejar la apertura de contexto fuera de la cola no
+habría cerrado la ventana real, ya que ambos turnos habrían seguido
+compitiendo por el mismo historial en cuanto `runTurn` arrancara. Cada
+llamada encadena su propio turno detrás del último encolado para ese
+`sessionId` con `.then(turn, turn)`, no con `.finally`: `.finally` sólo
+observa el resultado sin poder decidir qué corre después, mientras que
+encadenar `turn` como manejador tanto de éxito como de rechazo es lo que
+permite que un turno fallido no deje atascado, indefinidamente, a lo que
+está encolado detrás suyo en la misma sesión. A diferencia de
+`ConversationSessionStore` y `ProcessedWhatsappMessageStore`, esta cola no
+necesita ningún TTL: ninguna clave debe sobrevivir más allá del turno que
+la usó, así que la entrada del mapa se libera sola apenas nada queda
+encolado detrás. No se introdujo ninguna dependencia externa (por ejemplo,
+un mutex de terceros) para resolver la serialización, siguiendo el mismo
+criterio de infraestructura mínima que ya documenta `ProcessedWhatsappMessageStore`.
+
 ## 4.7 Cerradura TTLock
 
 El Módulo 6 se abrió con el adaptador de la cerradura electrónica (P6.1,
