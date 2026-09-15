@@ -5190,6 +5190,53 @@ escrituras —alta, edición y borrado— quedaron auditadas dentro de la misma
 transacción interactiva que las ejecuta, con el mismo criterio que ya usa
 el ABM de feriados.
 
+Una auditoría multi-agente contra el anteproyecto y el SRS, corrida ya
+cerrado el Módulo 5, encontró dos defectos críticos en el propio webhook de
+WhatsApp (P5.8, TASK-53) que ninguna de sus pruebas había cubierto
+(TASK-183): la extracción del mensaje entrante nunca capturaba el
+identificador que Meta asigna a cada mensaje (el "wamid"), así que no había
+ningún campo sobre el cual deduplicar una entrega repetida; y el cuerpo del
+método no envolvía en `try/catch` ni la invocación al orquestador ni el
+envío de la respuesta, de modo que cualquier falla —OpenAI agotando sus
+propios reintentos, el tope de iteraciones de herramientas, un error de
+entrega— se propagaba sin capturar, Nest respondía 500 y el paciente nunca
+recibía ninguna contestación. El propio comentario dejado en
+`chatbot.errors.ts` por P5.3/P5.4 anticipaba explícitamente un "futuro
+llamador" que atraparía esos errores una vez existiera un controlador HTTP
+real; ese llamador no se construyó hasta esta corrección. La consecuencia
+concreta que motivó la prioridad máxima del hallazgo: WhatsApp reintenta un
+webhook que no respondió 200, así que el reintento volvía a ejecutar el
+turno completo —una solicitud de receta reintentada creaba una segunda fila
+pendiente, porque nada a nivel de base de datos lo impedía—.
+
+La corrección agregó el wamid a `IncomingTextMessage`, exigido con la misma
+disciplina que el resto de los campos requeridos, y un almacén nuevo,
+`ProcessedWhatsappMessageStore`, que el controlador consulta antes de
+resolver la organización o invocar al orquestador: la primera vez que un
+wamid se reclama el turno sigue su curso normal; una repetición dentro de
+una ventana corta de minutos se descarta sin volver a ejecutar nada. El
+almacén comparte la forma en memoria y de expiración perezosa de
+`ConversationSessionStore`, pero no su mecanismo de limpieza: un
+`sessionId` se relee cada vez que la misma conversación continúa, así que
+la expiración por clave lo mantiene acotado solo; un wamid se reclama una
+única vez en el caso normal y nunca se vuelve a leer, así que en su lugar
+cada reclamo barre las entradas más viejas que el TTL —barrido que se
+mantiene barato precisamente porque, una vez que el propio webhook responde
+200 casi siempre, la ventana ya no tiene que cubrir una caída prolongada,
+sólo la garantía de entrega "al menos una vez" que WhatsApp sostiene de
+forma independiente al reintento por error—. El tramo que invoca al
+orquestador y envía la respuesta quedó envuelto en `try/catch`: un error se
+registra por log y el método responde 200 igual, ya que un 500 sólo
+garantiza un reintento duplicado del mismo fallo, y además se intenta —en
+un segundo `try/catch` que nunca propaga— enviar al paciente un mensaje de
+respaldo genérico, con el mismo patrón de texto enlatado que ya usan los
+guardrails, en lugar de dejarlo sin ninguna respuesta. No se agregó una
+restricción de unicidad a nivel de base de datos sobre las solicitudes de
+receta como segunda capa de defensa: el hallazgo la nombra como consecuencia
+observada, no como corrección sugerida, y habría bloqueado el caso legítimo
+de una segunda solicitud genuina en un turno distinto — la corrección real
+está en el webhook, que es donde se originaba la repetición.
+
 ## 4.7 Cerradura TTLock
 
 El Módulo 6 se abrió con el adaptador de la cerradura electrónica (P6.1,
