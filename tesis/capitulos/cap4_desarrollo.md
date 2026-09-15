@@ -5851,6 +5851,33 @@ la que este sistema se apoya para esas columnas, de lectura y escritura
 frecuente en la operación diaria, a diferencia del identificador de la
 cerradura, que solo dos componentes tocan.
 
+Una auditoría de código posterior contra el anteproyecto de tesis y la
+propia especificación de requisitos (TASK-190) encontró que la exclusión
+del código numérico, aceptada en el párrafo anterior por estar ya fuera de
+cualquier registro y por su ventana de validez corta, no cubría en
+realidad el mismo riesgo que justificaba cifrar el identificador opaco de
+la cerradura: una fuga del resultado de una consulta —no del disco en
+sí— expone igual de directamente el PIN que el paciente escribe en el
+teclado, y de hecho de forma más inmediata, porque ese código abre la
+puerta tal cual, sin necesitar ninguna llamada a la plataforma de la
+cerradura como sí requiere el identificador opaco. Se extendió el mismo
+mecanismo de cifrado autenticado al PIN, con la misma clave de entorno y
+el mismo algoritmo, descifrándolo en los mismos puntos donde ya se leía el
+identificador opaco desde la base de datos, de modo que el resto del
+sistema —el envío del PIN por WhatsApp al confirmar o reprogramar un
+turno, la respuesta HTTP de la apertura ad-hoc— sigue viendo el valor en
+claro sin conocer el mecanismo de cifrado. El único efecto colateral de
+fondo recayó sobre la verificación de unicidad de PIN entre códigos
+activos ya introducida por una tarea anterior (CER 5): al dejar de poder
+compararse dos PIN por igualdad directamente en la base de datos —el
+mismo vector de inicialización aleatorio en cada escritura que ya impedía
+comparar por igualdad el identificador opaco— esa verificación pasó de una
+consulta con filtro exacto a traer los candidatos activos cuya ventana de
+vigencia se superpone y descifrarlos uno a uno en memoria para compararlos
+contra el candidato nuevo, un conjunto que la propia tarea anterior ya
+documentaba como pequeño por construcción, dado que una colisión real
+ocurre, en promedio, una vez cada novecientas mil generaciones.
+
 El propio módulo de seguridad quedó con un vacío sin cubrir al cerrarse,
 señalado como tal en un comentario del código: un token JWT ya emitido
 seguía siendo válido hasta su expiración natural aunque la cuenta que lo
