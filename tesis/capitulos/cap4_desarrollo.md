@@ -1052,6 +1052,28 @@ de un cambio de configuración pero tampoco nombra el campo puntual—,
 porque ninguna de las dos auditorías lo señaló y extender el alcance sin
 un hallazgo propio habría sido una corrección no solicitada.
 
+La misma auditoría automatizada que originó el hallazgo anterior encontró
+también que la restricción de unicidad de la matrícula, introducida más
+arriba en esta sección, solo estaba traducida a un error legible en los dos
+puntos de escritura del servicio dedicado a matrículas —el alta y la edición
+incremental sobre un profesional ya existente—, no en el alta del propio
+profesional, que admite una lista inicial de matrículas dentro del mismo
+cuerpo de la petición. Dos matrículas repetidas en esa lista inicial chocaban
+igual contra la restricción, pero al no estar envuelta esa escritura en
+particular, el error crudo de la base de datos se propagaba como un `500`
+interno en lugar del `400` que la misma violación ya recibía por el otro
+camino. La corrección extrajo el chequeo —hasta entonces un método privado
+del servicio de matrículas— a una función compartida sin estado, y envolvió
+también la transacción de alta del profesional con el mismo patrón. La
+extracción, y no la reutilización directa del servicio de matrículas, fue
+necesaria porque ese servicio depende del de profesionales para anclar cada
+operación al profesional propietario: hacerlo depender también en sentido
+inverso habría cerrado un ciclo entre ambos. Se mantuvo el mismo criterio ya
+adoptado para la restricción —un `400` y no un `409`, por tratarse de una
+entrada redundante y no de una concurrencia entre escrituras—, de modo que
+los dos caminos de alta de una matrícula, incremental e inline, respondieran
+igual ante la misma violación.
+
 ## 4.3 Pacientes
 
 El segundo módulo de negocio siguió el mismo criterio de apertura que el
