@@ -6367,3 +6367,24 @@ ahí, a pesar de ser obligatoria al arrancar desde que se introdujo —un
 despliegue real que hubiera seguido únicamente ese archivo habría fallado
 al iniciar el servicio de backend—, corregido junto con esta tarea por
 tratarse del mismo bloque de configuración.
+
+Una última auditoría de la misma tanda del 28 de agosto de 2026 encontró
+que una notificación in-app dirigida al profesional seguía en inglés,
+inconsistencia menor pero real frente al resto de los textos que el
+sistema le muestra a un usuario de habla hispana. El motor de plantillas
+configurable por tenant ya cubría, desde una tarea anterior, el aviso de
+cancelación de turno y el de reasignación desde lista de espera al
+profesional, ambos migrados desde texto armado a mano en inglés a esa
+misma infraestructura; la notificación de una solicitud de receta pendiente
+había quedado afuera de esa migración, citando además el identificador
+interno del paciente en lugar de su nombre. Se cerró agregando una cuarta
+clave al mismo catálogo de plantillas, con el mismo sufijo que distingue un
+aviso profesional-facing de una confirmación dirigida al paciente aunque
+ambos describan el mismo hecho de negocio, y renderizando el mensaje a
+través del motor existente en lugar de interpolar una cadena a mano. Como
+era la tercera vez que el sistema necesitaba resolver el nombre de pila de
+un paciente para una plantilla —las dos tareas anteriores ya lo hacían,
+cada una con su propia copia idéntica de la misma consulta— se aprovechó la
+oportunidad para extraer esa lógica a una única función compartida en lugar
+de escribir una tercera copia, dejando un solo lugar del que depender si el
+criterio de qué mostrar como nombre de un paciente cambia en el futuro.
