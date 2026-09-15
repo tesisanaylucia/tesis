@@ -6092,3 +6092,50 @@ rechazo, no del descarte silencioso—, y se agregó una prueba nueva contra
 una ruta pública real que prueba el rechazo 400 de un campo sobrante junto
 a un caso de control que sólo envía los campos declarados, para distinguir
 el rechazo del campo puntual de un rechazo de la ruta completa.
+
+Una auditoría posterior contra el anteproyecto de tesis y la propia
+especificación de requisitos encontró que el límite de diez intentos por
+IP por minuto sobre el inicio de sesión, ya implementado y probado de
+punta a punta, dejaba de cumplir su propósito exactamente en la topología
+de despliegue que el propio proyecto documenta. El mecanismo de límite de
+tasa identifica al cliente por `req.ip`, y Express sólo resuelve esa
+dirección a partir de las cabeceras que un proxy inverso reenvía —como
+`X-Forwarded-For`— cuando se le indica explícitamente cuántos saltos de
+proxy confiar; sin esa configuración, `req.ip` es siempre la dirección del
+socket que conecta directamente con el proceso de Node, que detrás de
+Nginx o Caddy es el propio proxy, no el cliente real. El efecto práctico
+era que el límite por IP se convertía, en producción, en un límite
+compartido por toda la clínica: un único cliente malicioso podía agotar
+el contador con diez peticiones y dejar sin acceso al login a cualquier
+usuario legítimo detrás del mismo proxy, precisamente el escenario de
+denegación de servicio trivial que el propio límite existía para evitar.
+Se corrigió agregando la configuración de confianza de proxy de Express en
+el mismo punto de entrada donde ya se montaban las cabeceras de seguridad
+y la política CORS, con un número de saltos configurable por variable de
+entorno y no un valor fijo, para que un despliegue sin proxy —el caso
+minoritario que la propia guía de despliegue nombra como excepción, una
+prueba interna contra el contenedor directamente— pueda desactivarlo sin
+tocar código; el valor por defecto asume, en cambio, exactamente un salto,
+reflejando que la topología recomendada y ya documentada pone siempre un
+único proxy inverso delante del backend, de modo que el caso común no
+requiere ninguna configuración adicional. Siguiendo el mismo criterio de
+"fallar rápido ante una configuración inválida" que ya regía el validador
+de la lista blanca de CORS, un valor no entero o negativo de esa variable
+se rechaza en el arranque en lugar de degradarse en silencio a un
+comportamiento inseguro. La prueba de extremo a extremo de límite de tasa
+ya existente se extendió para enviar dos direcciones distintas por
+`X-Forwarded-For` contra el mismo endpoint y confirmar que cada una agota
+su propio contador sin afectar a la otra —confirmada primero en rojo al
+retirar deliberadamente la configuración de confianza de proxy, y luego en
+verde con la corrección aplicada, para probar que la prueba efectivamente
+detecta la ausencia del fix y no sólo que pasa por casualidad—, en vez de
+verificar el mecanismo de Express de forma aislada: la misma razón por la
+que las cabeceras de seguridad y la política CORS ya se probaban montando
+la función real de arranque sobre una instancia de aplicación aislada, no
+una reconstrucción manual de su configuración. Al tocar el mismo archivo
+de variables de entorno de despliegue se encontró, además, un defecto
+preexistente no relacionado: la lista blanca de CORS nunca se declaraba
+ahí, a pesar de ser obligatoria al arrancar desde que se introdujo —un
+despliegue real que hubiera seguido únicamente ese archivo habría fallado
+al iniciar el servicio de backend—, corregido junto con esta tarea por
+tratarse del mismo bloque de configuración.
