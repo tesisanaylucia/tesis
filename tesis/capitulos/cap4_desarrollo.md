@@ -5274,6 +5274,45 @@ encolado detrás. No se introdujo ninguna dependencia externa (por ejemplo,
 un mutex de terceros) para resolver la serialización, siguiendo el mismo
 criterio de infraestructura mínima que ya documenta `ProcessedWhatsappMessageStore`.
 
+La misma auditoría del 28 de agosto de 2026 dejó un tercer hallazgo, también
+de prioridad media, sobre `GuardrailService` (P5.4, TASK-49) en su rol de
+detección de urgencia (TASK-193). `checkIncomingMessage` compara el mensaje
+entrante, sin diacríticos, contra una lista fija de aproximadamente
+dieciocho frases por coincidencia de subcadena, antes de invocar al modelo;
+un mensaje de crisis parafraseado que no contuviera literalmente una de esas
+frases —el hallazgo cita "no aguanto más", "quiero desaparecer", "ya no
+quiero seguir"— salteaba por completo ese camino rápido. El prompt de
+sistema sí le pide al modelo responder con el texto de urgencia por su
+propio criterio ante angustia, pero no existía ninguna verificación del lado
+de la respuesta que confirmara que ese criterio efectivamente se hubiera
+aplicado, en el caso que el SRS — Módulo Turnos marca como el más
+importante ("mensajes preocupantes").
+
+La corrección combinó dos mecanismos. El primero amplió la lista de
+`URGENCY_KEYWORDS` con las paráfrasis coloquiales nombradas por el hallazgo
+y variantes cercanas, siguiendo el mismo mecanismo de coincidencia literal
+de subcadena que ya tenía la regla. El segundo, estructuralmente más
+significativo, agregó una regla nueva —la 4b— dentro de `checkResponse`:
+respaldada por `DISTRESS_LANGUAGE_PATTERNS`, un conjunto de expresiones
+regulares con conectores flexibles en lugar de frases literales (por
+ejemplo, una sola entrada captura "no aguanto más", "no doy más" y "no
+puedo más" a la vez), esta regla revisa el mensaje *entrante* del turno
+actual y, si coincide con lenguaje de angustia y la respuesta final del
+modelo no es ya el mensaje de urgencia, la reemplaza y lo reporta bajo el
+nuevo discriminante `no_missed_urgency`. Se decidió que corriera del lado de
+la respuesta, no como una segunda regla 4a, con el mismo razonamiento
+estructural que ya sostiene a `CLINICAL_ADVICE_PATTERNS` para la regla 1b:
+lo que vuelve sospechosa a la situación no es el mensaje del paciente en
+sí —ambiguo por definición, ya que es una paráfrasis— sino que el modelo
+haya tenido la oportunidad de reconocerlo vía el prompt de sistema y no lo
+haya hecho; verificar sólo el mensaje entrante habría convertido cualquier
+ampliación de patrones en un segundo camino rápido más agresivo, con el
+mismo riesgo de falsos positivos que ya había mantenido fuera de
+`URGENCY_KEYWORDS` a frases más ambiguas. La regla 4b corre primero dentro
+de `checkResponse`, antes que las cinco reglas preexistentes, de modo que
+una crisis no reconocida prevalece incluso si la misma respuesta también
+dispara otra regla.
+
 ## 4.7 Cerradura TTLock
 
 El Módulo 6 se abrió con el adaptador de la cerradura electrónica (P6.1,
