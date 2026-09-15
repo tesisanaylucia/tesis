@@ -5367,6 +5367,36 @@ de `checkResponse`, antes que las cinco reglas preexistentes, de modo que
 una crisis no reconocida prevalece incluso si la misma respuesta también
 dispara otra regla.
 
+La misma auditoría del 28 de agosto de 2026 dejó todavía un cuarto
+hallazgo, de prioridad baja, esta vez sobre el propio flujo "consultas
+generales" del manual de procedimiento (P5.6, TASK-51). El SRS nombra
+"profesionales disponibles" como uno de los cuatro temas que debe cubrir
+esa consulta, junto a dirección, horarios y obras sociales de la clínica,
+pero el flujo tal como había quedado escrito sólo llamaba a `answer_faq`
+para cualquier pregunta del grupo. La herramienta `list_professionals`
+(P5.5) ya devuelve un listado en vivo y siempre actualizado de los
+profesionales de la organización, y el propio flujo de reserva la usa como
+su primer paso; fuera de una reserva, sin embargo, una pregunta como "¿qué
+profesionales atienden?" dependía enteramente de que la clínica hubiera
+escrito y mantuviera sincronizada una fila de FAQ para esa pregunta
+puntual, cayendo en el texto de "no tengo esa información" aunque el
+sistema tuviera la respuesta real a una sola llamada de herramienta de
+distancia.
+
+La corrección (TASK-204) fue puramente de instrucción, sin herramienta ni
+columna nueva: se agregó un primer paso al flujo que ruteá la pregunta
+sobre quiénes atienden —no la de obra social o importe de un profesional
+puntual, que ya tenían su propio flujo anterior— a `list_professionals`
+antes de considerar la FAQ, con la instrucción explícita de no usar
+`answer_faq` para ese subtema. El ruteo va primero y no como comprobación
+posterior a un `matched: false`: dejar que el modelo llamara primero a la
+FAQ habría seguido dependiendo de que la clínica no tuviera cargada una
+fila desactualizada que igual matcheara, que es exactamente el caso que
+describe el hallazgo, no sólo el de una fila ausente. Se descartó una
+herramienta nueva dedicada a esta pregunta por el mismo motivo que TASK-163
+no creó una para importes: `list_professionals` ya carga el dato que hace
+falta.
+
 ## 4.7 Cerradura TTLock
 
 El Módulo 6 se abrió con el adaptador de la cerradura electrónica (P6.1,
