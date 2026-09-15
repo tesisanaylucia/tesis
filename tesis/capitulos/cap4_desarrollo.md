@@ -5455,11 +5455,11 @@ mismo `notifyPatient` que ya usaban la cancelación y la reprogramación. El
 criterio "no enviar si el código no quedó activo" no exigió ninguna
 verificación propia: `generateForAppointment` ya devuelve `null` para
 cualquier desenlace que no termine en una fila activa, así que un resultado
-nulo simplemente nunca alcanza el envío. Deliberadamente, el envío no se
-repite cuando `rescheduleCore` (TASK-57) regenera el código para una
-reprogramación: los criterios de aceptación del ticket sólo cubren la
-confirmación, y el paciente conserva un PIN válido para la fecha anterior
-hasta el instante mismo en que ese método lo anula.
+nulo simplemente nunca alcanza el envío. El envío no se repetía cuando
+`rescheduleCore` (TASK-57) regeneraba el código para una reprogramación
+—los criterios de aceptación de TASK-58 sólo cubrían la confirmación—, una
+omisión que quedó sin corregir hasta CER 1/TASK-166 (más adelante en esta
+misma sección).
 
 Para la apertura ad-hoc se agregó `AccessCodeService.generateAdhoc`, el
 endpoint nuevo `POST /cerradura/abrir-adhoc` (rol profesional o
@@ -5578,6 +5578,48 @@ adaptador de IA; diagrama de secuencia de la falla definitiva de
 generación (reintentos agotados → sin código activo ni envío → asiento en
 `LockLog` y en `REGISTRO_AUDITORIA` → notificación al profesional → turno
 igual CONFIRMADO), contrastado con la Figura 48.
+
+Una auditoría de código contra el SRS, fechada 2026-08-26 (hallazgo CER 1,
+severidad crítica), encontró que esa omisión de TASK-58 dejaba al paciente
+sin forma de ingresar al consultorio después de una reprogramación: el
+propio `rescheduleCore` revocaba el PIN vigente y generaba uno nuevo para
+la fecha nueva, pero el único mensaje que efectivamente llegaba al paciente
+era el aviso de reprogramación (`APPOINTMENT_RESCHEDULE`), nunca el PIN. El
+paciente se enteraba del nuevo horario y quedaba con un código ya anulado,
+sin ningún canal automático para conocer el reemplazo —una brecha que
+contradice el propósito declarado del módulo, sustituir la apertura manual
+por parte de secretaría—. La corrección (TASK-166) extrajo a un método
+privado compartido, `sendAccessCodeDelivery`, el armado y envío del mensaje
+`ACCESS_CODE_DELIVERY` que hasta entonces sólo usaba la confirmación, y lo
+reutilizó desde el método que reemplaza el código al reprogramar (renombrado
+`reissueAccessCode`) en lugar de duplicar la lógica de plantilla y envío
+entre los dos flujos. El criterio de envío quedó simétrico al de la
+confirmación: sólo se notifica cuando efectivamente se generó un código de
+reemplazo activo, nunca cuando el turno reprogramado no tenía un código
+vigente para empezar —el mismo caso de "regenerar es condicional" que
+`rescheduleCore` ya distinguía internamente mediante el valor booleano de
+`revokeForAppointment`, reutilizado aquí para no repetir esa misma
+consulta—. La reprogramación diferida que resuelve una `RescheduleOffer`
+(TASK-115) comparte el mismo método de escritura que la reprogramación
+inmediata, así que ambos caminos quedaron cubiertos por la misma
+corrección sin un segundo punto de enganche.
+
+La misma auditoría de 2026-08-26 generó, por una ejecución posterior e
+independiente sobre el código ya corregido, un segundo hallazgo (TASK-188)
+que describe exactamente esta omisión como si siguiera vigente. Verificado
+contra `main` —siguiendo el mismo criterio de revisar el remoto real y no
+una referencia local desactualizada que ya había evitado un falso positivo
+en TASK-81—, la corrección de TASK-166 ya estaba fusionada (PR #130) con
+cobertura de prueba dedicada para ambos llamadores de
+`reissueAccessCode`, así que TASK-188 no requirió ningún cambio de código
+adicional: quedó cerrado como una verificación que confirma un hallazgo de
+auditoría duplicado, no como una implementación nueva.
+
+Figura pendiente: ampliar el diagrama de secuencia del envío del código al
+confirmar (mencionado más arriba en esta misma sección) para incluir la
+rama de reprogramación —código activo revocado → código nuevo generado →
+`ACCESS_CODE_DELIVERY` con el PIN nuevo— junto a la rama sin código activo
+que previamente reprogramaba en silencio.
 
 Una auditoría de código posterior contra el SRS (TASK-178) encontró que la
 distinción entre `LockLog` y `REGISTRO_AUDITORIA` que TASK-59 había fijado
