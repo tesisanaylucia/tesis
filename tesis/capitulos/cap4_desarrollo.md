@@ -5648,6 +5648,57 @@ con un paciente pasa `patientId`" que ya cumplían `recordFailure` y
 única vez al principio del método, en lugar de sólo dentro de la rama de
 fallo como hacía hasta entonces.
 
+La misma auditoría de 2026-08-28 que generó el hallazgo duplicado de
+TASK-188 produjo un tercer hallazgo, TASK-189, esta vez sobre un vacío
+real: cuando `createTemporaryCode` tiene éxito pero la verificación
+posterior falla —ya sea porque `verifyCodeInstalled` devuelve `false` de
+forma definitiva, ya sea porque esa misma llamada agota sus reintentos de
+TASK-59 y lanza un error—, ninguna fila de `CODIGO_ACCESO` llega a
+persistirse en ninguna de las dos ramas, así que `AccessCodeExpirationCron`
+—que barre por `AccessCode.validUntil` en la base de datos— nunca puede
+alcanzar un passcode que, sin embargo, TTLock pudo haber instalado igual:
+el propio SRS pide "invocar a la API de la cerradura para eliminarlo,
+evitando su reutilización" para exactamente este caso, y hasta esta tarea
+esa invocación no ocurría. La propia prueba unitaria que hasta entonces
+cubría la rama `verified === false` documentaba el comportamiento vigente
+afirmando explícitamente que `deleteCode` nunca se llamaba, evidencia de
+que la omisión era un vacío conocido y no un descuido sin probar.
+
+La corrección reutiliza `deleteCodeBestEffort`, el mismo método de mejor
+esfuerzo que CER 5 (TASK-170) ya usaba para descartar un candidato con PIN
+colisionante, en lugar de duplicar su lógica de captura y registro de
+advertencia: `obtainVerifiedUniqueAccessCode` ahora envuelve su propia
+llamada a `verifyCodeInstalled` en un `try/catch` que invoca
+`deleteCodeBestEffort` antes de relanzar el error tal cual, y la rama
+`verified === false` hace la misma llamada antes de lanzar
+`UnverifiedLockCodeError`. Ninguna de las dos rutas necesitó una fila de
+`AccessCode`/`LockLog` propia para este intento de limpieza —igual que el
+caso de colisión que ya cubría `deleteCodeBestEffort`, no existe ninguna
+fila que referenciar todavía, así que un registro de advertencia sigue
+siendo la única traza—. El error que la eliminación en sí pueda producir
+se traga dentro del propio `deleteCodeBestEffort`, de modo que un passcode
+que ni siquiera pueda eliminarse no cambia el flujo de `recordFailure` que
+se dispara después: el barrido de expiración sigue siendo la red de
+seguridad final para ese caso, la misma que ya documentaba
+`deleteCodeBestEffort` para la colisión.
+
+Se modificó un único método compartido por los dos únicos llamadores de
+`obtainVerifiedUniqueAccessCode` (`generateForAppointment` y
+`generateAdhoc`), así que la corrección alcanza ambos flujos sin duplicar
+el cambio. La prueba unitaria que antes afirmaba lo contrario se
+reescribió para verificar que `deleteCode` sí se invoca en ambas ramas
+(verificación fallida y verificación con error), y se agregó una prueba
+nueva que confirma que una falla de la propia eliminación no cambia el
+resultado reportado al llamador —mismo criterio de mejor esfuerzo que ya
+prueba el camino de colisión—; la cobertura extremo a extremo de
+generación (`access-code-generation.e2e-spec.ts`) se amplió con la misma
+aserción contra un `LOCK_PORT` simulado.
+
+Figura pendiente: ampliar el diagrama de secuencia de la verificación
+fallida durante la generación (mencionado más arriba en esta misma
+sección, tras P6.2/TASK-56) para incluir el intento de eliminación de
+mejor esfuerzo antes de registrar `ACCESS_CODE_ERROR`.
+
 ## 4.9 Endurecimiento, cumplimiento y piloto
 
 Antes de continuar con los módulos siguientes se realizó una auditoría del
