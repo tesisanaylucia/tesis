@@ -3661,6 +3661,38 @@ ya que todo candidato que la nueva consulta deja pasar cumple por
 construcción que su horario todavía no llegó; se eliminó ese tope en la
 misma corrección en lugar de dejarlo como código sin efecto observable.
 
+Una novena revisión de la misma auditoría señaló una brecha entre la
+reorganización manual de agenda, tal como quedó implementada en su
+versión original, y el propio documento de requisitos: éste describe la
+capacidad como la "posibilidad de reprogramar todos los turnos de un
+período de tiempo", pero la operación solo aceptaba un lote explícito de
+pares turno/nuevo horario, lo que obligaba a quien la invocara a traer
+primero todos los turnos del período y armar ese lote por su cuenta. La
+corrección agregó una ruta declarativa alternativa: el llamador indica un
+período por fecha de inicio y fin y un corrimiento firmado en horas —un
+día calendario es simplemente 24—, y el servicio resuelve por sí mismo qué
+turnos reservados o confirmados de ese período mover, sin exigir su
+enumeración explícita. Un turno completado, cancelado o ausente dentro del
+período se deja sin tocar en lugar de reportarse como un movimiento
+fallido bajo un identificador que nadie nombró; el lote resuelto queda
+sujeto al mismo cupo máximo por pedido que ya regía la enumeración
+explícita, rechazando el pedido si el período resuelve a más turnos que
+ese cupo en lugar de aplicar solo una parte sin avisar.
+
+La nueva ruta reutiliza, sin ninguna duplicación, el mismo camino que ya
+recorría cada movimiento de la enumeración explícita: la misma
+verificación de pertenencia al profesional de la agenda, las mismas
+validaciones de la reprogramación individual (grilla habitual, fecha
+futura, elegibilidad de paciente nuevo), el mismo contrato de falla
+parcial y la misma exigencia de confirmación del paciente que ya
+introdujo la corrección del puerto de reprogramación descripta más
+arriba. Para lograrlo, el cuerpo del recorrido por movimiento que antes
+vivía dentro de la operación de reorganización explícita se extrajo a un
+método privado compartido entre ambas formas, de modo que una futura
+corrección sobre ese contrato —como ya ocurrió una vez con el puerto de
+confirmación— se aplique automáticamente a las dos en lugar de arriesgar
+que solo alcance a una.
+
 ## 4.5 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
