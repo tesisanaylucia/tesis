@@ -5913,6 +5913,76 @@ fallida durante la generación (mencionado más arriba en esta misma
 sección, tras P6.2/TASK-56) para incluir el intento de eliminación de
 mejor esfuerzo antes de registrar `ACCESS_CODE_ERROR`.
 
+Una restricción material del proyecto, y no un defecto del código, motivó la
+última intervención sobre este módulo (TASK-211). El adaptador real estaba
+terminado desde P6.1 y endurecido desde P6.5, pero al momento de esta tarea
+no existían todavía ni la cerradura física ni el gateway ni una cuenta de la
+Open Platform contra la cual apuntarlo, de modo que el flujo completo
+—turno confirmado, `CODIGO_ACCESO` activo, PIN entregado al paciente por
+WhatsApp— no podía ejercitarse de punta a punta: sin la clave
+`ttlock_config` del tenant, `resolveLockId` lanzaba su error,
+`generateForAppointment` lo registraba como `ACCESS_CODE_ERROR` y devolvía
+un código nulo —el comportamiento correcto ante una configuración ausente—
+y ningún PIN llegaba nunca al paciente. Se incorporó por eso un segundo
+adaptador del mismo puerto, `HardcodedLockAdapter`, que sortea los códigos
+localmente sin hablar con ningún servicio externo, ligado a `LOCK_PORT` en
+lugar del real únicamente cuando la variable de entorno `LOCK_ADAPTER` vale
+exactamente `hardcoded`. Que esto requiera un adaptador nuevo y ninguna
+modificación de la lógica de negocio es precisamente la propiedad que el
+patrón de puertos y adaptadores se adoptó para obtener (ver §3.4): el
+servicio que genera, verifica y revoca códigos no distingue quién responde
+detrás de la interfaz.
+
+El disparador del envío no se movió. El pedido admitía leerse como generar
+el código al *solicitarse* un turno, lo que habría adelantado la generación
+al momento de la reserva; se mantuvo en cambio la confirmación como único
+punto de generación, conforme al propio P6.2, porque adelantarla habría
+alterado la máquina de estados del turno y el requisito del SRS para
+resolver un problema que es de disponibilidad de hardware y no de diseño
+del flujo. La bandera se definió además como variable de entorno global y
+deliberadamente no como clave de `OrganizationConfig`, a diferencia de todo
+el resto de la configuración de la cerradura, que es por tenant: qué
+adaptador está ligado es una propiedad del entorno que se está probando y
+no de la configuración de un inquilino, y dejarlo por tenant permitiría que
+una clínica pusiera su propia puerta sobre una cerradura falsa. Por la
+misma razón, la comprobación exige la cadena exacta y cualquier otro valor
+—incluido un error de tipeo o la variable sin definir— deja ligado el
+adaptador real: la dirección en que falla una bandera que decide si los
+códigos de acceso físico son reales debe degradar hacia la integración
+verdadera, que como máximo fallará de forma visible, y nunca hacia una
+cerradura falsa que reporta éxito sobre una puerta que no se abrió.
+
+El adaptador imita deliberadamente la forma del real y no su contenido. El
+PIN se sortea con el mismo generador criptográfico y la misma longitud de
+seis dígitos, en lugar de ser un literal fijo, por dos razones concretas:
+un valor constante colisionaría consigo mismo en el segundo turno y
+agotaría los reintentos del chequeo de unicidad que CER 5 introdujo, y es
+la longitud de seis dígitos la que sostiene el cálculo de rareza de
+colisión que esa misma corrección documenta. El identificador opaco se
+sortea como UUID y no se reutiliza, igual que el handle de TTLock es global
+por construcción, y cada llamada reporta un intento a través del mismo
+callback que la política de reintentos de P6.5 usa, de modo que la traza
+operativa en `LockLog` conserva su forma en ambos modos. El PIN tampoco
+aparece en ninguna línea de registro: una cerradura falsa no es razón para
+relajar el criterio de P8.1, dado que las filas y los mensajes al paciente
+que este modo produce son por lo demás indistinguibles de los de
+producción.
+
+Lo que distingue a este adaptador de los stubs que precedieron a cada
+integración real durante las Fundaciones es que aquéllos respondían valores
+inertes en entornos sin integración, mientras que éste convive con un flujo
+que cree estar operando una puerta: ningún passcode llega a la cerradura, y
+la apertura manual que RF-CE-07 nombra como alternativa al código ad-hoc
+reporta éxito sin abrir nada. Se lo marcó por eso en tres lugares
+simultáneos —una advertencia al ligarse durante el arranque, una
+advertencia por cada llamada, y el prefijo `hardcoded-` en todo
+`AccessCode.ttlockPasscodeId` que produce, que deja la fila identificable
+en la base de datos cuando se vuelva al adaptador real, donde ese handle no
+corresponde a ningún passcode eliminable—. El andamiaje es explícitamente
+temporal: la tarea que valide la integración real contra la cerradura y el
+gateway de la clínica debe retirar el adaptador, la factoría de selección y
+la variable de entorno, restituyendo la ligadura directa que existía antes.
+
 ## 4.9 Endurecimiento, cumplimiento y piloto
 
 Antes de continuar con los módulos siguientes se realizó una auditoría del
