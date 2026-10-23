@@ -267,24 +267,73 @@ de la plataforma —la ventana de veinticuatro horas y el disparo de
 plantillas fuera de ella— ya estaba registrada para el Marco Teórico (N° 4)
 desde antes de esta tarea y no se duplica: el texto de 4.6 la referencia.
 
+## Resultado del alta de plantillas en la plataforma
+
+El registro posterior de las plantillas arrojó un resultado parcial que vale
+la pena dejar asentado, porque es una restricción de la plataforma y no del
+diseño. Seis de las ocho quedaron aprobadas sin observaciones. **Las dos que
+transportan el PIN del código de acceso fueron rechazadas**: la plataforma
+sostiene que corresponden a la categoría de autenticación —la destinada a
+códigos que verifican una transacción o un inicio de sesión— y no a la de
+servicio, que es la de los mensajes sobre un pedido existente.
+
+La discrepancia es conceptual y no de redacción. El número que estos dos
+mensajes transportan no verifica identidad: es la clave de un teclado físico
+que abre la puerta del consultorio durante el horario de un turno ya
+agendado. Se intentaron dos redacciones sucesivas para hacerlo explícito
+—una que encabezaba con el ingreso físico y otra que encabezaba con el turno
+ya confirmado, relegando el número a un dato secundario de logística—, y
+ambas fueron rechazadas igual, lo que sugiere que la clasificación se apoya
+en la presencia de un número de seis dígitos antes que en el texto que lo
+rodea. El motivo exacto devuelto en el rechazo no quedó registrado.
+
+Aceptar la categoría de autenticación no es gratuito: esas plantillas exigen
+un componente de botón de copiado que el adaptador actual no envía, obligan
+a un cuerpo de texto acotado por la plataforma —que llamaría "código de
+verificación" a lo que es la clave de una puerta— y se tarifan de otra
+manera. Se optó por no hacerlo en esta corrección.
+
+La decisión es sostenible porque ninguno de los dos mensajes queda sin
+camino. El envío del PIN del turno ocurre inmediatamente después de que el
+paciente responde "SI" por WhatsApp, de modo que la ventana de veinticuatro
+horas está abierta en ese preciso momento y el respaldo de texto libre
+entrega sin problema; quedan descubiertos solo dos casos menos frecuentes,
+el turno que confirma un profesional desde su aplicación y la reemisión del
+código al reprogramar. El PIN ad-hoc, por su parte, siempre vuelve en la
+respuesta HTTP a quien lo solicitó, así que el profesional o administrativo
+que lo generó lo tiene a la vista y puede transmitírselo al paciente: el
+envío por WhatsApp era una comodidad y no el canal garantizado, tal como ya
+lo documentaba esa función desde que se implementó.
+
+Como consecuencia práctica, la plantilla del código del turno quedó
+registrada bajo el nombre `envio_codigo_ttlock`, que es el que el catálogo
+declara ahora como nombre por defecto.
+
 ## Trabajo pendiente que esta tarea deja registrado
 
-Primero, y de orden operativo antes que de desarrollo: **la corrección no
-surte efecto hasta que las ocho plantillas estén aprobadas en la
-plataforma**, con el idioma correspondiente y con sus parámetros
-posicionales en el orden que declara el catálogo. Mientras eso no ocurra, el
-respaldo mantiene el comportamiento anterior, que solo entrega dentro de la
-ventana de veinticuatro horas. El ítem de checklist agregado a la marcha
-blanca incluye la prueba de aceptación que lo verifica.
+Primero, las dos plantillas rechazadas admiten tres caminos, ninguno
+emprendido en esta corrección: apelar la categorización ante la plataforma;
+implementar el soporte de plantillas de autenticación en el adaptador, con
+su componente de botón; o partir el mensaje en dos, de modo que una
+plantilla de servicio avise sin contener el número y el PIN viaje después
+por texto libre, lo que exige recordar que quedó una entrega pendiente. El
+tercero es el más costoso y agrega un ida y vuelta justo cuando el paciente
+está esperando en la puerta.
 
-Segundo, el transporte se elige sin consultar si la ventana está abierta, de
+Segundo, mientras esas dos claves no tengan plantilla aprobada, cada envío
+de PIN realiza igualmente un llamado a la plataforma que falla antes de caer
+al texto libre. Es una llamada de más y una advertencia en el registro por
+cada envío; si la situación se vuelve permanente, conviene poder marcar una
+clave como "sin plantilla" para que vaya directo al respaldo.
+
+Tercero, el transporte se elige sin consultar si la ventana está abierta, de
 modo que se envía una plantilla incluso cuando un mensaje de texto libre
 habría alcanzado. Es correcto en cuanto a la entrega pero no en cuanto al
 costo, ya que una plantilla de utilidad se tarifa; optimizarlo exige
 persistir la marca temporal del último mensaje entrante por paciente, que
 hoy no se registra.
 
-Tercero, sigue pendiente lo que ya había registrado la corrección anterior
+Cuarto, sigue pendiente lo que ya había registrado la corrección anterior
 de esta fase (TASK-214) y que esta tarea no aborda: los avisos automáticos
 se envían **por fila** y no por sesión, de modo que la primera sesión de un
 paciente nuevo todavía produce dos mensajes nombrando las nueve y las nueve

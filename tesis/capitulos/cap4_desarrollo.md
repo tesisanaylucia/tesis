@@ -5614,13 +5614,48 @@ envía una plantilla incluso cuando un mensaje de texto libre habría
 alcanzado, lo cual es correcto en cuanto a la entrega pero no en cuanto al
 costo, dado que una plantilla de utilidad se tarifa. Optimizarlo exige
 persistir la marca temporal del último mensaje entrante por paciente, dato
-que el sistema no registra. Corresponde señalar, por último, que la
-aprobación de las ocho plantillas en la plataforma es un prerrequisito
-operativo para que esta corrección surta efecto, y que por eso se incorporó
-como ítem del checklist de marcha blanca (4.9) con una prueba de aceptación
-que reproduce el caso que originó el hallazgo: con un turno a más de
-veinticuatro horas y sin mensajes entrantes del paciente en ese lapso, el
-pedido de confirmación debe llegar igual.
+que el sistema no registra. La aprobación de las plantillas en la plataforma
+es, además, un prerrequisito operativo para que la corrección surta efecto,
+y por eso se incorporó como ítem del checklist de marcha blanca (4.9) con
+una prueba de aceptación que reproduce el caso que originó el hallazgo: con
+un turno a más de veinticuatro horas y sin mensajes entrantes del paciente
+en ese lapso, el pedido de confirmación debe llegar igual.
+
+Ese registro arrojó un resultado parcial que conviene dejar asentado, porque
+expone un límite impuesto por la política de la plataforma antes que por el
+diseño. Seis de las ocho plantillas fueron aprobadas sin observaciones; las
+dos que transportan el PIN del código de acceso fueron rechazadas, con el
+argumento de que corresponden a la categoría de autenticación —la destinada
+a códigos que verifican una transacción o un inicio de sesión— y no a la de
+servicio. La discrepancia es conceptual y no de redacción: el número que
+esos mensajes transportan no verifica identidad alguna, sino que es la clave
+de un teclado físico que abre la puerta del consultorio durante el horario
+de un turno ya agendado. Se ensayaron dos redacciones sucesivas para
+hacerlo explícito, una encabezando por el ingreso físico y otra encabezando
+por el turno ya confirmado, con el número relegado a dato secundario de
+logística, y ambas fueron rechazadas igual, lo que sugiere que la
+clasificación se apoya en la presencia de un número de seis dígitos antes
+que en el texto que lo rodea. Adoptar la categoría de autenticación habría
+tenido su propio costo —esas plantillas exigen un componente de botón de
+copiado que el adaptador no envía, imponen un cuerpo de texto acotado que
+llamaría "código de verificación" a la clave de una puerta, y se tarifan de
+otro modo—, de manera que se optó por no hacerlo.
+
+La decisión resulta sostenible porque ninguno de los dos mensajes queda sin
+camino, y la razón ilumina una propiedad del diseño que no era evidente al
+plantearlo. El PIN del turno se envía inmediatamente después de que el
+paciente responde por WhatsApp, de modo que la ventana de veinticuatro horas
+está abierta justamente en ese instante y el respaldo de texto libre entrega
+sin dificultad; solo quedan descubiertos dos casos menos frecuentes, el
+turno que confirma un profesional desde su aplicación y la reemisión del
+código al reprogramar. El PIN ad-hoc, por su parte, siempre retorna en la
+respuesta HTTP a quien lo solicitó, de modo que el personal que lo generó lo
+tiene a la vista y puede transmitírselo al paciente: su envío por WhatsApp
+era una comodidad y no el canal garantizado, tal como ya lo documentaba esa
+función desde su implementación. Dicho de otro modo, el respaldo de texto
+libre que se había incorporado para no romper lo que ya funcionaba mientras
+las plantillas se aprobaban terminó cubriendo también un caso que la
+aprobación nunca va a alcanzar.
 
 ## 4.7 Cerradura TTLock
 
