@@ -3769,6 +3769,33 @@ corrección sobre ese contrato —como ya ocurrió una vez con el puerto de
 confirmación— se aplique automáticamente a las dos en lugar de arriesgar
 que solo alcance a una.
 
+Una corrección posterior, originada en el uso real del bot y narrada por
+completo en 4.6, dejó una consecuencia dentro de este módulo que conviene
+registrar acá: desde que la primera sesión de un paciente nuevo se le
+informa como un único turno, el identificador que el paciente puede nombrar
+es siempre el de la mitad más temprana del doble turno, de modo que las
+operaciones que él inicia tuvieron que pasar a tomar la sesión completa.
+Confirmar y cancelar arrastran ahora a la otra mitad —con un único código
+de acceso y un único mensaje de PIN por sesión, anclados en la mitad que
+marca el comienzo, que es cuando el paciente efectivamente llega, mientras
+la reasignación del lugar liberado sigue disparándose por mitad, ya que dos
+medias horas liberadas son dos lugares reales de la grilla y pueden
+ofrecerse a dos pacientes distintos de la lista de espera—, y la
+reprogramación de media sesión pasó a rechazarse por completo. Este último
+punto convirtió en error explícito una limitación que el código ya
+documentaba: la reprogramación mueve un turno a la vez y no tiene mecanismo
+alguno para mantener emparejada la otra mitad, por lo que hasta esta
+corrección partía la sesión en dos en silencio. Mover el doble turno
+completo —validando el nuevo comienzo contra la grilla de pacientes nuevos
+y reubicando ambas mitades— es la solución completa y quedó registrada como
+trabajo pendiente: exige una variante emparejada de la escritura de
+reprogramación, con su reemisión de código de acceso, su aviso al paciente
+y el camino diferido de la confirmación, un alcance propio frente a un
+hallazgo cuyo objeto era lo que el bot dice. Mientras tanto el paciente
+tiene un camino que funciona de punta a punta, que el manual de flujos le
+ofrece: cancelar la primera sesión, que ahora se cancela entera, y
+reservarla de nuevo, que la vuelve a colocar como par.
+
 ## 4.5 Notificaciones y Scheduler
 
 El módulo de Notificaciones y recordatorios se abrió con el motor de
@@ -5450,6 +5477,150 @@ describe el hallazgo, no sólo el de una fila ausente. Se descartó una
 herramienta nueva dedicada a esta pregunta por el mismo motivo que TASK-163
 no creó una para importes: `list_professionals` ya carga el dato que hace
 falta.
+
+Un último hallazgo de esta fase no provino de una auditoría documental sino
+del uso real del bot, y expone una costura entre dos módulos antes que un
+defecto dentro de uno. La primera sesión de un paciente nuevo se reserva,
+desde el motor de turnos (4.4), como dos turnos contiguos: el doble turno
+que crea la regla de franja extra, con cada mitad del largo de una consulta
+habitual. Esa partición es un hecho de la agenda del profesional —son dos
+bloques realmente ocupados de su grilla, y así los necesita ver su
+aplicación— pero estaba llegando sin filtro a la conversación: el bot le
+confirmaba al paciente un turno de treinta minutos para una sesión que
+ocupa una hora y, al preguntarle después qué turnos tenía agendados, le
+respondía que tenía dos, uno a las nueve y otro a las nueve y media. Para
+el paciente, en cambio, hay un solo compromiso: eligió un horario y le debe
+a la clínica una sesión más larga.
+
+La corrección (TASK-214) colapsa el par en el borde de salida hacia la capa
+conversacional, y únicamente ahí. Se descartó la alternativa de fondo
+—guardar la primera sesión como una sola fila de duración doble, con lo que
+nada habría que colapsar— porque revierte una decisión ya tomada y
+documentada en 4.4 y, sobre todo, porque le quitaría al profesional la
+vista fiel de su propia ocupación. El colapso se implementó como una regla
+pura, del mismo tipo que las otras reglas sin estado del módulo de turnos,
+que agrupa los turnos de un paciente en las sesiones que ese paciente
+vivió. Reconoce las dos mitades por lo que dicen las filas mismas —igual
+profesional, igual día calendario, ambas marcadas como primera sesión— sin
+ningún campo de esquema que las vincule, porque no existe: la cota de un
+paciente nuevo por jornada y por profesional, ya vigente en la reserva,
+vuelve inequívoca esa combinación, de modo que no hizo falta una migración
+para expresar algo que las propias filas ya determinan. La duración que la
+regla informa es el lapso desde el comienzo de la primera mitad hasta el
+final de la última, y no la suma de ambas: con una cadencia de turnos
+configurada los dos números difieren, y lo que el paciente tiene que
+reservar en su día es el lapso. Con esa regla, la consulta de turnos del
+paciente devuelve una entrada por sesión, la reserva responde un único
+turno con la duración completa en lugar del arreglo de dos filas que sigue
+devolviendo la ruta HTTP equivalente, y el pre-chequeo de elegibilidad pasa
+a informar cuántos minutos durará esa primera sesión, para que el bot pueda
+decir la hora antes de que se reserve nada: la pregunta por la duración
+aparece mientras el paciente todavía está eligiendo. El manual de flujos
+fija la misma regla del lado de la instrucción —un horario de inicio, una
+duración, nunca dos turnos, y siempre el número que informó la
+herramienta—, con la misma división de trabajo que el resto de esta fase
+mantiene: el prompt es el control primario y las herramientas son las que
+no dependen de que el modelo obedezca, ya que el par le llega colapsado y
+no tiene de dónde sacar el segundo horario aunque la instrucción se ignore.
+Se descartó corregir sólo el manual de flujos justamente por eso: el ticket
+nace de que el modelo ya había dicho lo que no debía, con los dos horarios
+a la vista en el resultado de la herramienta.
+
+El último hallazgo de esta fase volvió sobre el transporte mismo de los
+mensajes y expuso una capacidad construida y nunca conectada. Un turno
+reservado para las nueve de la mañana no recibió el pedido de confirmación
+que debe salir veinticuatro horas antes; como el paciente no recibió nada,
+tampoco respondió, y en consecuencia el código de acceso que se genera al
+confirmar (4.7) no se generó ni se envió. Los dos síntomas, observados por
+separado, resultaron efectos de una única causa, y no la que sugerían las
+dos primeras hipótesis —los procesos programados de la fase 4 y la
+condición de paciente nuevo—, ambas descartadas durante el diagnóstico. La
+Cloud API de WhatsApp entrega un mensaje de texto libre únicamente dentro de
+la ventana de atención al cliente de veinticuatro horas, contadas desde el
+último mensaje *entrante* del paciente; fuera de ella rechaza el envío y la
+única manera de reabrir la conversación es una plantilla de utilidad
+previamente aprobada, según el modelo de mensajería de la plataforma
+introducido en 2.3 y esquematizado en la Figura 4 `[CITA: ventana de
+atención al cliente de 24 horas y requisito de plantilla para mensajes
+iniciados por la empresa en WhatsApp Business Platform]`. Todo mensaje que
+el sistema inicia por su cuenta nace fuera de esa ventana por definición: el
+pedido de confirmación sale veinticuatro horas antes del turno, cuando el
+paciente reservó días atrás. Enviarlos como texto libre equivalía a
+garantizar que no llegaran. La evidencia decisiva estaba en el propio
+código: la operación de envío por plantilla del puerto de mensajería, y la
+constante que fija el idioma con que esas plantillas se registran, existían
+desde la integración inicial de la Cloud API —el comentario de esa constante
+nombra incluso la plantilla de confirmación de turno como ejemplo— pero no
+tenían un solo llamador, y los seis flujos que las necesitaban usaban todos
+la operación de texto libre. La falla era además silenciosa por una decisión
+previa acertada: el rechazo de la plataforma se registraba como advertencia
+y revertía la marca de idempotencia, lo que evitaba la consecuencia
+destructiva —la cancelación automática del turno por falta de respuesta a un
+mensaje que nunca se entregó— pero no lograba que el mensaje llegara.
+
+La corrección (TASK-219) introduce un único punto de salida para todo
+mensaje iniciado por el sistema, que intenta primero la plantilla aprobada y
+recurre al texto libre sólo si esa vía falla. El orden no es
+intercambiable: la plantilla es el único transporte que entrega fuera de la
+ventana, de modo que debe ir primero, mientras que el texto libre sigue
+siendo el que funciona dentro de ella —el PIN que sale inmediatamente
+después de que el paciente respondió, por ejemplo— y el único disponible en
+un entorno donde las plantillas aún no completaron su aprobación. Se
+descartó enviar únicamente por plantilla, que es la opción más fiel al
+modelo de la plataforma, precisamente porque habría dejado sin funcionar
+todo lo que hasta entonces funcionaba hasta que cada plantilla fuera
+aprobada. Un fallo de la plantilla se registra como advertencia y no se
+propaga, ya que un nombre mal configurado o una plantilla no aprobada son
+problemas operativos y no razones para omitir el otro transporte; si ambos
+fallan, el error del segundo se propaga tal como antes, de manera que cada
+flujo conserva la decisión que ya tomaba al respecto. Centralizar esa
+secuencia en un servicio, en lugar de repetirla en los seis flujos
+distribuidos en cuatro módulos, responde al mismo criterio con que el envío
+del PIN ya era un único lugar compartido entre la confirmación y la
+reprogramación: flujos que replican una secuencia quedan libres de
+divergir. Como consecuencia, el método que notifica al paciente dejó de
+recibir un texto ya renderizado y pasa a recibir la clave de plantilla y sus
+parámetros, porque renderizar antes de la llamada era exactamente lo que
+dejaba la decisión de transporte sin un lugar donde vivir.
+
+Dos aspectos del diseño merecen mención por lo que resuelven. El primero es
+que el nombre con que cada plantilla queda registrada no está fijo en el
+código sino que se resuelve en tres niveles —la configuración del inquilino,
+una variable de entorno por mensaje y, finalmente, el nombre por defecto del
+catálogo—, con la misma precedencia que ya regía en el motor de plantillas
+de mensajes de 4.5 más un escalón intermedio nuevo. La razón del escalón es
+que ese nombre no lo elige el sistema sino quien da de alta la plantilla en
+la plataforma: en una instalación de un solo inquilino, configurarlo por
+entorno es bastante menos ceremonia que escribir una fila de configuración
+por cada mensaje. El segundo es el orden posicional de los parámetros. Las
+plantillas de la plataforma toman parámetros posicionales, no los
+placeholders con nombre que usa el motor de plantillas de mensajes, y la
+traducción entre ambos mundos es ese orden, que se declara de forma
+explícita en el catálogo en lugar de derivarse del texto por defecto aunque
+hoy ambos coincidan: un inquilino puede personalizar el texto libre y
+reordenar sus placeholders sin tocar la plantilla aprobada, que es un objeto
+aparte, fijo y alojado en la plataforma. Que hoy coincidan no es casualidad
+sino el contrato que debe respetar quien registra la plantilla, y por eso se
+agregó una prueba que fija esa coincidencia: un orden desalineado no
+produce ningún error, sino un mensaje con los valores cruzados, de manera
+que esa prueba es el único mecanismo capaz de detectar la divergencia. Por
+el mismo motivo, el objeto de parámetros se reconstruye en el orden
+declarado antes de entregarlo al adaptador, en vez de confiar en el orden en
+que cada flujo armó el suyo.
+
+Queda fuera del alcance de la corrección, y registrado como pendiente, el
+consultar si la ventana está abierta antes de elegir el transporte: hoy se
+envía una plantilla incluso cuando un mensaje de texto libre habría
+alcanzado, lo cual es correcto en cuanto a la entrega pero no en cuanto al
+costo, dado que una plantilla de utilidad se tarifa. Optimizarlo exige
+persistir la marca temporal del último mensaje entrante por paciente, dato
+que el sistema no registra. Corresponde señalar, por último, que la
+aprobación de las ocho plantillas en la plataforma es un prerrequisito
+operativo para que esta corrección surta efecto, y que por eso se incorporó
+como ítem del checklist de marcha blanca (4.9) con una prueba de aceptación
+que reproduce el caso que originó el hallazgo: con un turno a más de
+veinticuatro horas y sin mensajes entrantes del paciente en ese lapso, el
+pedido de confirmación debe llegar igual.
 
 ## 4.7 Cerradura TTLock
 

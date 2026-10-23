@@ -39,6 +39,7 @@ tipo, para que las autoras completen la fuente concreta.
 | 22 | patrones de ejecución de tareas programadas en aplicaciones backend | 2.4 | Artículo académico o libro de referencia sobre *scheduled tasks* / *cron jobs* en arquitecturas backend |
 | 23 | idempotencia en el procesamiento periódico de datos | 2.4 | Artículo académico o libro sobre idempotencia y procesamiento por lotes/periódico |
 | 24 | ejecución de tareas programadas en aplicaciones multi-tenant | 2.4 | Artículo académico o whitepaper sobre scheduling en sistemas multi-tenant |
+| 25 | ventana de atención al cliente de 24 horas y requisito de plantilla para mensajes iniciados por la empresa en WhatsApp Business Platform | 2.3 | Documentación oficial de WhatsApp Business Platform (Meta) sobre la *customer service window* y los mensajes iniciados por la empresa |
 
 ## Datos volátiles marcados `[VERIFICAR: ...]` (no son citas bibliográficas)
 
