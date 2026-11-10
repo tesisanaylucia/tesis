@@ -5657,6 +5657,79 @@ libre que se había incorporado para no romper lo que ya funcionaba mientras
 las plantillas se aprobaban terminó cubriendo también un caso que la
 aprobación nunca va a alcanzar.
 
+Un hallazgo posterior, también sobre el uso real y también en la costura
+entre esta fase y el motor de turnos, se refiere a lo que el bot ofrece
+antes de reservar. La primera sesión de un paciente nuevo no se coloca en
+cualquier hueco libre de la agenda: la regla de franja extra de 4.4 la ubica
+donde el profesional la haya configurado —el primer turno del día, el
+último, o un par contiguo dentro de la franja habitual— y la reserva valida
+el horario elegido contra exactamente esa grilla. El cálculo de esa agenda
+especial existía desde esa fase y la ruta HTTP de disponibilidad ya la
+exponía bajo un parámetro propio, pero la herramienta de disponibilidad del
+catálogo conversacional consultaba siempre la agenda habitual del
+profesional, sin conocer al paciente por el que se preguntaba. El resultado
+era que el paciente nuevo era llevado a elegir un horario que se le mostraba
+libre —y que de hecho lo estaba para cualquier otro paciente— y que la
+reserva rechazaba recién después de haber elegido. En las dos modalidades
+que ubican la franja extra en el borde de la jornada el desencuentro es
+total: ese bloque está fuera de la ventana de atención habitual, de modo que
+la lista ofrecida y la lista de lo reservable no tenían un solo horario en
+común.
+
+La corrección (TASK-213) hace que la disponibilidad que la conversación
+ofrece se calcule para el par paciente/profesional y no para el profesional
+solo. La decisión de qué agenda corresponde quedó en el motor de turnos, por
+dos razones que conviene separar: la pregunta es sobre el vínculo
+paciente/profesional —el que registra si la primera sesión ya ocurrió— y el
+servicio de disponibilidad no conoce pacientes, sino que computa grillas de
+profesionales; y ubicarla en la herramienta habría contradicho la regla con
+que se construyó este catálogo, que ninguna regla de agenda ni de reserva
+viva en él. El predicado que decide es el mismo que usa la reserva, lo cual
+es lo que impide que las dos listas vuelvan a separarse, y es
+deliberadamente el indicador de primera sesión del vínculo y no el tipo de
+paciente: los dos se mueven juntos al asistir, pero la regla de inactividad
+de 4.3 devuelve el tipo a "nuevo" tras un año sin concurrir mientras el
+indicador permanece en falso, y un paciente que vuelve después de años no es
+alguien a quien la franja extra deba aplicarse. Dos consecuencias del diseño
+previo evitaron agregar código: el profesional que todavía no configuró su
+modalidad no necesita un caso especial, porque el propio cálculo de la
+franja extra ya responde ahí con la agenda habitual menos los días que ya
+tienen un paciente nuevo —exactamente lo que la reserva permite—, y tanto el
+profesional que no acepta pacientes nuevos como la cota de un paciente nuevo
+por jornada ya forman parte de ese cálculo, de modo que ahora, incluso si el
+modelo omitiera el pre-chequeo de elegibilidad de P5.6, recibiría una lista
+vacía en lugar de una lista de turnos inalcanzables.
+
+Se descartó corregir únicamente el manual de flujos, por la razón que esta
+fase viene sosteniendo en cada regla que importa: el prompt es el control
+primario pero no puede ser el único, y en este caso la instrucción sería
+además incumplible, ya que el modelo no tiene de dónde deducir cuál es la
+franja extra de cada profesional. Se descartó también agregar a la
+herramienta un parámetro booleano de "paciente nuevo", como el que tiene la
+ruta HTTP equivalente, porque obliga al modelo a sostener un dato que el
+sistema ya sabe y porque un valor equivocado en cualquiera de los dos
+sentidos reproduce el defecto; la ruta HTTP lo expone así porque su llamador
+es la aplicación del profesional, que efectivamente elige qué vista quiere
+ver, mientras que la conversación no elige sino que pregunta por un paciente
+concreto. Por el mismo criterio, el id del paciente quedó como parámetro
+obligatorio de la herramienta: una llamada sin él no puede responderse, y su
+valor por omisión razonable —la agenda habitual— es justamente la respuesta
+equivocada para el paciente nuevo.
+
+La corrección arrastró un detalle que ilustra cuán específico es el borde
+entre ambas agendas. La exclusión del horario recién cancelado, que la
+agenda habitual aceptaba desde TUR-14 para no volver a ofrecer el turno que
+el paciente acaba de liberar, no llegaba al cálculo de la franja extra; con
+este cambio puede llegar, porque un paciente cuyo turno cancelado era su
+primera sesión sigue siendo paciente nuevo y es a esta agenda a la que se lo
+devuelve al continuar hacia la reprogramación. La exclusión se aplica sobre
+los horarios de comienzo que cada modalidad ofrece y no sobre los bloques
+libres con que esos comienzos se construyen: si el paciente canceló el turno
+de las nueve y media, ese comienzo debe desaparecer, pero el par que empieza
+a las nueve —y que ocupa las nueve y las nueve y media— es otro turno a otra
+hora, y ese bloque está realmente libre. Lo que la regla prohíbe es volver a
+ofrecer el turno cancelado, no todo turno que lo contenga.
+
 ## 4.7 Cerradura TTLock
 
 El Módulo 6 se abrió con el adaptador de la cerradura electrónica (P6.1,
