@@ -5730,6 +5730,25 @@ a las nueve —y que ocupa las nueve y las nueve y media— es otro turno a otra
 hora, y ese bloque está realmente libre. Lo que la regla prohíbe es volver a
 ofrecer el turno cancelado, no todo turno que lo contenga.
 
+Una corrección posterior de la misma familia (TASK-215) llevó ese principio
+un paso antes, a la elección del profesional. La herramienta que lista a los
+profesionales devolvía siempre la nómina completa, de modo que a un paciente
+nuevo se le ofrecían también los profesionales que no toman pacientes nuevos,
+y recién el pre-chequeo de elegibilidad de P5.6 lo rechazaba después de que
+ya había elegido. La regla se cumplía, pero tarde: se le ofrecía al paciente
+una opción que no tenía. La herramienta recibe ahora, de manera opcional, el
+id del paciente, y cuando lo recibe deja afuera a los profesionales que no
+aceptan pacientes nuevos y con los que la reserva sería su primera sesión.
+El parámetro es opcional, a diferencia del de la disponibilidad, porque la
+misma herramienta responde preguntas que no son sobre un paciente —quiénes
+atienden, qué obra social acepta cada uno— y ahí la respuesta correcta sigue
+siendo la nómina completa. El predicado de "paciente nuevo" es otra vez el
+indicador de primera sesión del vínculo, el mismo que usa la reserva, y el
+filtro aplica solo la compuerta de aceptación de pacientes nuevos y no la de
+edad mínima: cuando la ficha no tiene fecha de nacimiento, ese pre-chequeo no
+rechaza sino que la pide, y ocultar al profesional habría suprimido ese
+diálogo.
+
 ## 4.7 Cerradura TTLock
 
 El Módulo 6 se abrió con el adaptador de la cerradura electrónica (P6.1,
