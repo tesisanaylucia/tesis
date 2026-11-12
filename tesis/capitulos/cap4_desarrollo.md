@@ -4382,6 +4382,35 @@ cuando existe alguna, y el segundo ya declara la lista de claves recorriendo
 el enumerado completo en lugar de una lista propia que hubiera podido
 quedar desactualizada de la misma manera que la migración.
 
+Una prueba de uso real como paciente nuevo mostró que los tres jobs
+dirigidos al paciente —el pedido de confirmación, el recordatorio y la
+cancelación automática por falta de respuesta— no reconocían la primera
+sesión de un paciente nuevo como una unidad. Esa sesión se almacena como dos
+turnos contiguos, uno por cada bloque de la agenda del profesional (sección
+4.4), y la capa conversacional ya la presentaba como un único turno de
+duración total (sección 4.6). Los jobs, en cambio, recorrían las filas de a
+una, de modo que el paciente recibía dos pedidos de confirmación por dos
+supuestos turnos de media hora, después dos recordatorios, y, al no quedar
+registrada su respuesta, dos avisos de cancelación. La corrección hizo que
+los tres jobs operen sobre la sesión y no sobre la fila. El pedido de
+confirmación y el recordatorio reclaman, con una única escritura guardada,
+la marca de idempotencia de todas las mitades a la vez y envían un solo
+mensaje con la hora de inicio de la sesión —y, en el caso de la
+confirmación, su duración completa—; cuando el job llega a la otra mitad ya
+no queda nada que reclamar. Se descartó deduplicar los candidatos dentro de
+cada corrida porque las dos mitades pueden entrar en la ventana de detección
+en corridas distintas, y sólo una marca compartida en la base de datos
+garantiza un único envío sin importar en qué corrida, ni en qué orden,
+aparezca cada mitad. Esa misma marca compartida es la que permite que la
+cancelación automática trate a la sesión como un todo: cada mitad conserva
+su propia cancelación, su asiento de auditoría, su reasignación y su aviso
+al profesional —su agenda efectivamente liberó dos bloques—, pero el
+paciente recibe un único aviso. El criterio para reconocer las dos mitades
+quedó expresado una sola vez, como una consulta compartida con el colapso
+que ya usaba la capa conversacional, para que lo que un job agrupa en la
+base de datos y lo que el chatbot agrupa en memoria no puedan llegar a
+diferir.
+
 ## 4.6 Capa conversacional y WhatsApp
 
 El Módulo 5 se abrió con el adaptador de IA (P5.1, TASK-46), la pieza que
@@ -5798,6 +5827,27 @@ contacto, profesionales del paciente— no tuvieran que replicarse. El
 número se compara tal como está guardado, lo que cubre a todo paciente dado
 de alta por el chatbot; los registros importados de planillas con otro
 formato de teléfono siguen identificándose por DNI.
+
+Una corrección posterior (TASK-218) atendió los mensajes que no son texto.
+El webhook ya los distinguía, pero solo para descartarlos: respondía 200 a
+Meta y no le enviaba nada al paciente, que tras mandar una nota de voz, una
+foto o un sticker se quedaba esperando una respuesta que no iba a llegar.
+Que el chatbot atienda solo texto se mantiene, porque así lo fija el
+alcance del SRS y porque el puerto de IA transporta únicamente texto; lo
+que cambia es que el rechazo ahora le llega al paciente. La extracción del
+mensaje entrante devuelve ahora una de dos variantes, texto o formato no
+soportado, y la segunda recibe la misma deduplicación por wamid y la misma
+resolución del inquilino que la primera, de modo que una reentrega no se
+contesta dos veces y un número sin mapeo sigue sin respuesta. Después se
+le envía una respuesta fija que le pide al paciente escribir su consulta,
+sin pasar por el orquestador. Se descartó dejar que el modelo redactara esa
+respuesta a partir de un marcador del tipo "el paciente envió un audio":
+gastaba una llamada a la IA en algo que siempre se contesta igual. Al no
+intervenir el modelo, además, el historial de la sesión queda intacto, así
+que el próximo mensaje escrito retoma la conversación donde estaba. Las reacciones con emoji y los avisos de sistema
+de Meta quedan fuera y no reciben respuesta, porque no son algo que el
+paciente haya dicho. Contestar "no puedo procesar ese formato" a un 👍
+sobre la confirmación de un turno sería ruido, no ayuda.
 
 ## 4.7 Cerradura TTLock
 
