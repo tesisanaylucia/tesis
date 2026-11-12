@@ -5749,6 +5749,56 @@ edad mínima: cuando la ficha no tiene fecha de nacimiento, ese pre-chequeo no
 rechaza sino que la pide, y ocultar al profesional habría suprimido ese
 diálogo.
 
+Otro hallazgo de uso real (TASK-217) mostró que el bot ofrecía turnos que ya
+habían pasado, del mismo día o de días anteriores, aunque el cálculo de
+disponibilidad los excluía desde TUR-9 y la reserva rechazaba un instante
+pasado. El defecto no estaba en lo que las herramientas devolvían sino en lo
+que el modelo sabía del momento presente y en cómo leía los horarios. El
+prompt le informaba solo la fecha, sin la hora, y esa fecha era la del día
+UTC, que entre las veintiuna y la medianoche de la clínica ya es la del día
+siguiente. Además, los horarios viajan con el sufijo `Z` porque el sistema
+escribe la hora de pared de la clínica en campos UTC, y nada le indicaba al
+modelo que no debía convertirlos: leído como UTC, un turno de las catorce
+pasa a ser uno de las once, que bien puede haber pasado ya. La corrección es
+esta vez del prompt y no de una herramienta, porque la herramienta ya
+cumplía y la información faltante solo podía llegarle al modelo por esa vía.
+El encabezado del manual de flujos informa ahora el día de la semana, la
+fecha y la hora de la clínica, tomados de un único instante del reloj de la
+clínica para que no queden a uno y otro lado de la medianoche; una regla
+explícita indica que las fechas que devuelven las herramientas ya están en
+hora local aunque terminen en `Z`; y los flujos de reserva y reprogramación
+piden volver a consultar la disponibilidad cada vez que se muestran
+horarios, en lugar de reutilizar una lista de un mensaje anterior que pudo
+quedar vieja. Se descartó cambiar la forma de los horarios en la respuesta
+de las herramientas, porque esa codificación es la de todo el sistema y la
+misma que la reserva recibe de vuelta, y la aclaración en el prompt cubre a
+la vez a todas las herramientas que devuelven fechas.
+
+Un hallazgo posterior (TASK-223) mostró que cada conversación nueva volvía a
+pedirle al paciente el DNI y, si era nuevo, el consentimiento, aunque ambos
+ya estuvieran registrados: el alta desde el chatbot guarda como celular el
+número de WhatsApp desde el que se escribe, y el consentimiento es una fila
+propia que se persiste una sola vez. El defecto estaba en la memoria de la
+conversación, que era únicamente el historial de la sesión, mantenido en
+memoria y descartado tras el tiempo de inactividad o al reiniciarse el
+proceso; vencido ese historial, el manual de flujos indicaba siempre pedir
+el DNI como primer paso. La corrección hace que el orquestador consulte, al
+comienzo de cada turno, qué pacientes activos del inquilino tienen como
+celular el número que escribe, y agregue al final del prompt de sistema una
+sección que se lo informa al modelo: con un único paciente, su nombre y su
+DNI —para que llame a la herramienta de identificación sin pedirlo— y si ya
+aceptó el consentimiento; con varios, como una familia que comparte el
+teléfono, la lista para que el modelo pregunte para cuál de ellos es la
+consulta. Se optó por leer hechos ya registrados en la base en lugar de
+prolongar o persistir el historial, que igualmente terminaría venciendo y
+arrastraría contexto ajeno a la consulta en curso, y por conservar la
+herramienta de identificación como único camino, de modo que las reglas
+que ella aplica —datos obligatorios faltantes, actualización de datos de
+contacto, profesionales del paciente— no tuvieran que replicarse. El
+número se compara tal como está guardado, lo que cubre a todo paciente dado
+de alta por el chatbot; los registros importados de planillas con otro
+formato de teléfono siguen identificándose por DNI.
+
 ## 4.7 Cerradura TTLock
 
 El Módulo 6 se abrió con el adaptador de la cerradura electrónica (P6.1,
