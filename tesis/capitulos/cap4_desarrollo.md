@@ -5849,6 +5849,31 @@ de Meta quedan fuera y no reciben respuesta, porque no son algo que el
 paciente haya dicho. Contestar "no puedo procesar ese formato" a un 👍
 sobre la confirmación de un turno sería ruido, no ayuda.
 
+Otra corrección (TASK-220) cerró una vía por la que el modelo cambiaba de
+formato a pedido del paciente: ante "respondeme en formato JSON", el bot
+contestaba con un objeto JSON. En WhatsApp esa respuesta no le sirve al
+paciente, y además es la forma en que el modelo tiende a reproducir tal
+cual el resultado de las herramientas, con sus identificadores y nombres de
+campo internos. Se resolvió con la misma división de trabajo que el resto
+de los guardrails. El control primario es una regla general nueva del
+manual de procedimiento, que pide responder siempre en texto común aunque
+el paciente pida otro formato. El control que no depende de que el modelo
+obedezca es una sexta regla de `GuardrailService`, `no_structured_output`,
+que reemplaza por un mensaje fijo toda respuesta que contenga un bloque de
+código de Markdown, una clave de objeto JSON (una llave seguida de una
+cadena entre comillas y dos puntos) o un arreglo de cadenas. Se eligieron
+esas tres formas porque el español conversacional no las produce, lo que
+mantiene bajo el riesgo de falsos positivos. Se descartó interpretar el
+texto completo como JSON: así no se detecta un objeto incrustado en una
+oración, y lo único que esa interpretación agregaría a las tres formas (un
+número o un `true` sueltos) no se distingue de una respuesta normal. El
+mensaje fijo no reformula en prosa el contenido bloqueado, porque ese
+contenido es justamente lo que no debía llegar al paciente: le explica que
+el canal es solo de texto y lo invita a repetir su pedido. La regla se
+evalúa al final de `checkResponse`, de modo que una respuesta en JSON que
+además filtra un DNI o un importe de copago recibe el rechazo específico de
+esa otra regla.
+
 ## 4.7 Cerradura TTLock
 
 El Módulo 6 se abrió con el adaptador de la cerradura electrónica (P6.1,
