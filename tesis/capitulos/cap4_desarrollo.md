@@ -5874,6 +5874,28 @@ evalúa al final de `checkResponse`, de modo que una respuesta en JSON que
 además filtra un DNI o un importe de copago recibe el rechazo específico de
 esa otra regla.
 
+Una corrección posterior (TASK-225) resolvió que el bot no interpretara la
+respuesta al pedido de confirmación de un turno. El hallazgo se había
+atribuido a las mayúsculas, pero el "SI" que el propio mensaje solicita
+fallaba igual que el "si". La causa era que el pedido lo envía una tarea
+programada, por fuera de toda conversación, y por lo tanto no figuraba en el
+historial que recibe el modelo: la respuesta del paciente le llegaba como
+primer mensaje de una conversación vacía. La solución sigue la de TASK-223.
+Al comienzo de cada turno, `PendingConfirmationService` busca los turnos
+futuros y todavía reservados de ese número cuya confirmación ya se pidió, y
+el orquestador los agrega al prompt de sistema. Se descartó guardar el
+mensaje enviado en el historial de la sesión, que vence por inactividad mucho
+antes que el plazo del paciente para contestar; leído del turno, el dato
+sobrevive a un reinicio y desaparece solo cuando el turno se confirma o se
+cancela. Las pruebas con el modelo real mostraron que la instrucción no
+alcanzaba: en una de ellas, un "no" terminó confirmando el turno, acción que
+además envía un código de acceso. Se agregó por eso un control que no depende
+de que el modelo obedezca: el orquestador rechaza la confirmación cuando el
+mensaje del paciente es una negativa simple, y el bot pregunta si se quiere
+cancelar o reprogramar. El patrón exige que el mensaje completo sea la
+negativa, porque una respuesta como "no hay problema, confirmo" empieza con
+la misma palabra y significa lo contrario.
+
 ## 4.7 Cerradura TTLock
 
 El Módulo 6 se abrió con el adaptador de la cerradura electrónica (P6.1,
