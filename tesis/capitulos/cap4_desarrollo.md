@@ -4419,8 +4419,10 @@ diseño del puerto y del adaptador se apoya en los conceptos de *function
 calling* ya introducidos en el Marco Teórico (2.2). El puerto `AIPort`, ya
 declarado en la fase de Fundaciones como una interfaz de una sola operación
 resuelta por un adaptador *stub*, recibió en esta tarea su primera
-implementación real —`OpenAiAdapter`, sobre el SDK oficial `openai`, contra
-el modelo GPT-4o mini— y, con ella, un contrato más completo:
+implementación real —`OpenAiAdapter`, sobre el SDK oficial `openai`, que
+hoy opera contra el modelo GPT-6 Luna (en esta tarea se construyó contra
+GPT-4o mini, reemplazado más tarde por deprecación, como se describe al
+final de esta sección)— y, con ella, un contrato más completo:
 `processMessage` pasó a aceptar el historial completo de la conversación,
 el conjunto de herramientas disponibles para ese turno y, opcionalmente, la
 instrucción de sistema, devolviendo una respuesta que puede traer texto,
@@ -4433,7 +4435,8 @@ conversación multi-turno no hay chatbot, y sin instrucción de sistema no
 hay forma de que el orquestador incorpore el contexto del inquilino, que el
 propio ticket reserva explícitamente para esa fase posterior.
 
-La elección de GPT-4o mini como proveedor no surgió del texto del ticket
+La elección de OpenAI como proveedor —con GPT-4o mini como modelo en el
+momento de esta tarea— no surgió del texto del ticket
 —cuyo título en el tablero, "Adaptador de IA con Sonnet", nombra a Claude
 Sonnet de Anthropic— sino del documento de evaluación de tecnologías de
 inteligencia artificial conversacional elaborado como insumo del Objetivo
@@ -4443,15 +4446,20 @@ media —comprensión de intención, conducción del diálogo, invocación de
 funciones del backend y redacción de respuestas breves—, sin requerir las
 capacidades de razonamiento de frontera de los modelos más costosos, y
 prioriza en consecuencia el equilibrio costo–calidad entre los tiers
-económicos de cada proveedor. GPT-4o mini resultó allí sensiblemente más
+económicos de cada proveedor. En esa comparación, GPT-4o mini —el tier
+económico de OpenAI evaluado entonces— resultó sensiblemente más
 económico que el tier equivalente de Anthropic (Claude Haiku 4.5), y el
 documento señala además la madurez de su function calling —clave porque el
 bot debe invocar de forma confiable las funciones del backend: consultar
-grilla, reservar, generar PIN— como una fortaleza distintiva. Una primera
-versión de esta tarea, escrita antes de que este proveedor se verificara
-contra ese documento, se había implementado por error sobre Claude Sonnet;
-la implementación se rehizo por completo sobre GPT-4o mini antes de cerrar
-la tarea, y esta sección describe únicamente la versión final.
+grilla, reservar, generar PIN— como una fortaleza distintiva. Esos mismos
+criterios son los que sostienen al modelo vigente, GPT-6 Luna, el más
+económico y rápido de su familia y con la misma interfaz de herramientas.
+Una primera versión de esta tarea, escrita antes de que este proveedor se
+verificara contra ese documento, se había implementado por error sobre
+Claude Sonnet; la implementación se rehizo por completo sobre GPT-4o mini,
+el modelo de OpenAI de entonces, antes de cerrar la tarea, y este pasaje
+describe únicamente esa versión final, cuyo modelo fue sustituido después
+por GPT-6 Luna.
 
 Las formas de dato del puerto —mensaje, bloque de texto, bloque de uso de
 herramienta, bloque de resultado de herramienta, respuesta— se definieron
@@ -4473,8 +4481,8 @@ cambio de tipos al pasar de Anthropic a OpenAI, sólo el adaptador y su
 módulo de mapeo.
 
 El modelo y la clave de API se resuelven como configuración global del
-sistema —variables de entorno `OPENAI_MODEL` (con `gpt-4o-mini` como valor
-por defecto) y `OPENAI_API_KEY`—, nunca por inquilino, siguiendo la
+sistema —variables de entorno `OPENAI_MODEL` (con `gpt-6-luna` como valor
+por defecto vigente) y `OPENAI_API_KEY`—, nunca por inquilino, siguiendo la
 instrucción explícita del ticket de que la marca blanca de este módulo se
 resuelve enteramente en la instrucción de sistema que el orquestador arme
 por inquilino, no en qué modelo ni qué credencial se usa. La clave se lee
@@ -5895,6 +5903,34 @@ mensaje del paciente es una negativa simple, y el bot pregunta si se quiere
 cancelar o reprogramar. El patrón exige que el mensaje completo sea la
 negativa, porque una respuesta como "no hay problema, confirmo" empieza con
 la misma palabra y significa lo contrario.
+
+El modelo de lenguaje sobre el que se construyó el adaptador también tuvo que
+cambiarse. OpenAI anunció el 14 de octubre de 2026 la deprecación de GPT-4o
+mini, con retiro de la API el 14 de enero de 2027, y nombró a GPT-6 Luna como
+su reemplazo, que es desde entonces el modelo vigente (TASK-210). La
+migración no consistió sólo en cambiar el nombre del modelo. Sobre la API de
+Chat Completions, GPT-6 Luna admite *function calling* únicamente con el
+parámetro `reasoning_effort` en `none`, cuyo valor por defecto es `medium`:
+con el nombre del modelo como único cambio, el bot habría perdido todas sus
+herramientas y seguido respondiendo con texto verosímil, una falla silenciosa
+del chatbot entero. Por eso cada llamada envía ese parámetro de forma
+explícita, y el arranque advierte si se lo configura con otro valor. Se
+descartó migrar a la API de Responses, que permite combinar herramientas con
+un razonamiento mayor, porque exigía reescribir el módulo de mapeo; queda
+como alternativa a evaluar si la selección de herramientas resultara inferior
+a la del modelo anterior. Cada llamada envía además `store: false`, para que
+el proveedor no conserve los mensajes de pacientes de salud mental. La
+revisión de la migración sumó tres ajustes de robustez: una respuesta
+cortada por el tope de tokens nunca se envía al paciente; las fallas se
+distinguen entre las que el paciente puede resolver reformulando y las
+técnicas, que lo remiten al teléfono de la clínica; y el historial que se
+reenvía en cada turno se acota a un máximo configurable, cortando siempre
+donde empieza un turno. Los registros, por último, dejaron de contener
+números de celular completos y se correlacionan por el identificador del
+mensaje de WhatsApp. El puerto `AIPort` sólo sumó un motivo de corte para las
+respuestas rechazadas por el modelo, de modo que el cambio volvió a quedar
+contenido en el adaptador y su módulo de mapeo, como en el cambio de
+proveedor de TASK-46.
 
 ## 4.7 Cerradura TTLock
 
